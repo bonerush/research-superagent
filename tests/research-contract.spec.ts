@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { contractHash, freezeContract, verifyContract, type Contract } from '../src/research/contract.ts'
+import { contractHash, freezeContract, verifyContract } from '../src/research/contract.ts'
+import type { Contract } from '../src/research/model.ts'
 
 const base: Contract = {
   version: 1, goal: 'g', requirement: 'r',
