@@ -1,4 +1,5 @@
 /** The agenda file: the lab's only long-lived memory, parsed strictly so a hand edit cannot silently drop an entry. */
+import { createHash } from 'node:crypto'
 import { assertIsoTimestamp, type Precision } from './model.ts'
 
 const LF = String.fromCharCode(10)
@@ -75,4 +76,42 @@ export function parseAgenda(text: string): AgendaEntry[] {
   })
   finish()
   return entries
+}
+
+/** The block one entry renders to; parseAgenda reads it back unchanged. */
+export function renderEntry(entry: AgendaEntry): string {
+  return [
+    `### ${entry.id}`,
+    `- question: ${entry.question}`,
+    `- precision: ${entry.precision}`,
+    `- status: ${entry.status}`,
+    `- conclusion: ${entry.conclusion}`,
+    `- evidence: ${entry.evidence.join(', ')}`,
+    `- decidedBy: ${entry.decidedBy}`,
+    `- at: ${entry.at}`,
+  ].join(LF)
+}
+
+/** The stamp a reader takes before appending: SHA-256 over the document with line endings normalized. */
+export function agendaDigest(text: string): string {
+  return createHash('sha256').update(text.split(CRLF).join(LF)).digest('hex')
+}
+
+/** The only role that may write the agenda; every other role proposes a change instead. */
+const AGENDA_WRITER = 'bookkeeper'
+
+/** Throws when a role other than the bookkeeper tries to write the agenda. */
+export function assertAgendaWriter(role: string): void {
+  if (role !== AGENDA_WRITER) throw new Error(`agenda: only the bookkeeper may write it, not ${role}`)
+}
+
+/**
+ * Appends one entry to the document that was read under `digest`.
+ * A digest mismatch means someone else wrote since the read: appending would drop their entry, so it throws.
+ */
+export function appendEntry(text: string, entry: AgendaEntry, digest: string): string {
+  if (agendaDigest(text) !== digest) throw new Error('agenda: stale read, re-read before appending')
+  if (parseAgenda(text).some(existing => existing.id === entry.id)) throw new Error(`agenda: duplicate id ${entry.id}`)
+  const body = text.endsWith(LF) ? text : text + LF
+  return body + LF + renderEntry(entry) + LF
 }
