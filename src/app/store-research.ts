@@ -2,6 +2,7 @@
 import type { DatabaseSync } from 'node:sqlite'
 import { verifyContract } from '../research/contract.ts'
 import { assertIsoTimestamp, validateQuestion, type Attempt, type Decision, type FrozenContract, type Question, type Run } from '../research/model.ts'
+import type { Batch } from '../research/proposal.ts'
 
 const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS questions (id TEXT PRIMARY KEY, statement TEXT NOT NULL, precision TEXT NOT NULL, prediction TEXT, test TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL)',
@@ -9,6 +10,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS attempts (id TEXT PRIMARY KEY, slug TEXT NOT NULL, question_id TEXT NOT NULL, contract_version INTEGER NOT NULL, branch TEXT NOT NULL, protocol_path TEXT NOT NULL, agenda_entry_id TEXT, status TEXT NOT NULL, verdict TEXT)',
   'CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL, kind TEXT NOT NULL, machine TEXT NOT NULL, image TEXT NOT NULL, git_commit TEXT NOT NULL, command TEXT NOT NULL, params TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, cost_cents INTEGER, log_path TEXT, artifacts TEXT NOT NULL)',
   'CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, kind TEXT NOT NULL, target_id TEXT NOT NULL, actor TEXT NOT NULL, by TEXT NOT NULL, at TEXT NOT NULL, note TEXT)',
+  'CREATE TABLE IF NOT EXISTS batches (id TEXT PRIMARY KEY, json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL)',
 ]
 
 /** Creates the research tables in an open database. Idempotent: safe on every start. */
@@ -53,7 +55,7 @@ const toDecision = (row: Record<string, unknown>): Decision => ({
 /** Money in cents: the budget cap is compared against a sum, and float addition moves a boundary. */
 const toCents = (yuan: number | undefined): number | null => (yuan == null ? null : Math.round(yuan * 100))
 
-/** Reads and writes the five research aggregates. */
+/** Reads and writes the research aggregates. */
 export class ResearchRepo {
   constructor(private readonly db: DatabaseSync) {}
 
@@ -153,5 +155,26 @@ export class ResearchRepo {
   decisionsFor(targetId: string): Decision[] {
     const rows = this.db.prepare('SELECT * FROM decisions WHERE target_id = ? ORDER BY at').all(targetId) as Record<string, unknown>[]
     return rows.map(toDecision)
+  }
+
+  /** Stores one proposal batch whole: the candidates, the critiques and the rejections travel together. */
+  saveProposalBatch(batch: Batch): void {
+    this.db.prepare(
+      'INSERT OR REPLACE INTO batches (id, json, status, created_at) VALUES (?, ?, ?, ?)',
+    ).run(batch.id, JSON.stringify(batch), batch.status, assertIsoTimestamp(batch.createdAt))
+  }
+
+  /** One batch, or undefined when the id is unknown. */
+  getProposalBatch(id: string): Batch | undefined {
+    const row = this.db.prepare('SELECT json FROM batches WHERE id = ?').get(id) as { json?: string } | undefined
+    return row?.json ? (JSON.parse(row.json) as Batch) : undefined
+  }
+
+  /** Every batch, newest first, optionally only those in one status. */
+  listProposalBatches(status?: Batch['status']): Batch[] {
+    const rows = (status
+      ? this.db.prepare('SELECT json FROM batches WHERE status = ? ORDER BY created_at DESC').all(status)
+      : this.db.prepare('SELECT json FROM batches ORDER BY created_at DESC').all()) as { json: string }[]
+    return rows.map(row => JSON.parse(row.json) as Batch)
   }
 }
