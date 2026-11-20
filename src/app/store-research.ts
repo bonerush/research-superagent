@@ -1,6 +1,7 @@
 /** Persistence for the research domain. Its own database, not the ticket store's schema. */
 import type { EvidencePackage } from '../research/evidence.ts'
 import { validateEvidence } from '../research/evidence.ts'
+import type { Reproducibility } from '../research/reproduction.ts'
 import type { DatabaseSync } from 'node:sqlite'
 import { verifyContract } from '../research/contract.ts'
 import { assertNoOverlap } from '../research/ledger.ts'
@@ -175,6 +176,9 @@ export class ResearchRepo {
     if (!(DECISION_KINDS as readonly string[]).includes(decision.kind)) {
       throw new Error(`unknown decision kind ${String(decision.kind)}`)
     }
+    if (this.decisionsFor(decision.targetId).some(existing => existing.id === decision.id)) {
+      throw new Error(`${decision.kind} for ${decision.targetId} was already recorded`)
+    }
     this.db.prepare(
       'INSERT INTO decisions (id, kind, target_id, actor, by, at, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
     ).run(decision.id, decision.kind, decision.targetId, decision.actor, decision.by,
@@ -263,21 +267,27 @@ export class ResearchRepo {
     this.db.prepare("INSERT OR REPLACE INTO machine (id, booted_at, off_at) VALUES ('self', NULL, ?)").run(assertIsoTimestamp(at))
   }
 
-  /** Stores the evidence package once, after checking it against the contract the attempt was judged under. */
-  saveEvidence(pkg: EvidencePackage, outcome: string): void {
-    if (this.getEvidence(pkg.attemptId)) throw new Error(`attempt ${pkg.attemptId} already has evidence`)
+  /**
+   * Stores the evidence package once, after checking it against the contract the attempt was judged under.
+   * Only a concluded attempt has evidence; an inconclusive rerun may replace the previous package, because the
+   * machine disproved nothing and the person still needs a better rerun.
+   */
+  saveEvidence(pkg: EvidencePackage, outcome: Reproducibility): void {
+    const existing = this.getEvidence(pkg.attemptId)
+    if (existing && existing.outcome !== 'inconclusive') throw new Error(`attempt ${pkg.attemptId} already has evidence`)
     const attempt = this.getAttempt(pkg.attemptId)
     if (!attempt) throw new Error(`unknown attempt ${pkg.attemptId}`)
+    if (attempt.status !== 'concluded') throw new Error(`attempt ${pkg.attemptId} is not concluded`)
     const contract = this.getContract(attempt.contractVersion)
     if (!contract) throw new Error(`attempt ${pkg.attemptId} has no signed contract`)
     validateEvidence(pkg, contract)
-    this.db.prepare('INSERT INTO evidence (attempt_id, json, outcome) VALUES (?, ?, ?)').run(pkg.attemptId, JSON.stringify(pkg), outcome)
+    this.db.prepare('INSERT OR REPLACE INTO evidence (attempt_id, json, outcome) VALUES (?, ?, ?)').run(pkg.attemptId, JSON.stringify(pkg), outcome)
   }
 
   /** The evidence of one attempt, with the reproduction outcome recorded beside it. */
-  getEvidence(attemptId: string): (EvidencePackage & { outcome: string }) | undefined {
+  getEvidence(attemptId: string): (EvidencePackage & { outcome: Reproducibility }) | undefined {
     const row = this.db.prepare('SELECT json, outcome FROM evidence WHERE attempt_id = ?').get(attemptId) as { json?: string; outcome?: string } | undefined
-    return row?.json ? { ...(JSON.parse(row.json) as EvidencePackage), outcome: String(row.outcome) } : undefined
+    return row?.json ? { ...(JSON.parse(row.json) as EvidencePackage), outcome: row.outcome as Reproducibility } : undefined
   }
 
   /** Stores the report a person reads; a rewrite replaces the previous draft. */
@@ -291,11 +301,16 @@ export class ResearchRepo {
     return row?.text
   }
 
-  /** Rewrites only the verdict of a concluded attempt, which is what a failed reproduction does. */
-  settleVerdict(id: string, verdict: Attempt['verdict']): void {
+  /**
+   * Downgrades a supported verdict after a confirmed failure to reproduce.
+   * This is the only write that may change a concluded verdict, and it is one-way: a refuted or inconclusive
+   * attempt cannot be raised, and a verdict cannot be cleared.
+   */
+  downgradeToInconclusive(id: string): void {
     const attempt = this.getAttempt(id)
     if (!attempt) throw new Error(`unknown attempt ${id}`)
     if (attempt.status !== 'concluded') throw new Error(`attempt ${id} is not concluded`)
-    this.db.prepare('UPDATE attempts SET verdict = ? WHERE id = ?').run(verdict ?? null, id)
+    if (attempt.verdict !== 'supported') throw new Error(`attempt ${id} was not supported: ${String(attempt.verdict)}`)
+    this.db.prepare("UPDATE attempts SET verdict = 'inconclusive' WHERE id = ?").run(id)
   }
 }

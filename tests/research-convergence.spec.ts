@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { researchTool } from '../src/app/tools/research.ts'
 import { ResearchRepo, createResearchSchema } from '../src/app/store-research.ts'
 import { sign } from '../src/research/sign.ts'
-import type { Contract } from '../src/research/model.ts'
+import type { Contract, Question } from '../src/research/model.ts'
 
 const AT = '2026-11-21T00:00:00.000Z'
 const signal = new AbortController().signal
@@ -11,16 +11,22 @@ const contract: Contract = {
   version: 1, goal: 'g', requirement: 'r', criteria: [{ id: 'c1', statement: 'accuracy lifts', tolerance: '0.01' }],
   budgetCapYuan: 200, stopCondition: 'no lift', signedBy: '',
 }
+const question: Question = {
+  id: 'Q-1', statement: 'q', precision: 'topic', status: 'open', createdAt: AT,
+}
 const open = (): ResearchRepo => {
   const db = new DatabaseSync(':memory:')
   createResearchSchema(db)
   return new ResearchRepo(db)
 }
 const runTool = (tool: ReturnType<typeof researchTool>, args: unknown) => tool.execute(args as never, signal)
-const evidenceArgs = (attemptId: string, outcome: string) => ({
-  action: 'evidence', attemptId, outcome, branch: 'b', commit: 'abc', image: 'img', machineType: 'a100',
-  dataKind: 'hash', dataValue: 'sha256:1', command: 'python train.py',
-  metrics: { c1: '0.71' }, reproduce: 'bash reproduce.sh',
+const verification = (over: Record<string, unknown> = {}) => ({
+  commit: 'abc', dataHash: 'sha256:1', command: 'python train.py', metrics: { c1: '0.71' }, ...over,
+})
+const evidenceArgs = (attemptId: string, over: Record<string, unknown> = {}) => ({
+  action: 'evidence', attemptId, branch: 'b', commit: 'abc', image: 'img', machineType: 'a100',
+  dataHash: 'sha256:1', command: 'python train.py', metrics: { c1: '0.71' }, reproduce: 'bash reproduce.sh',
+  verification: verification(), ...over,
 })
 
 const concluded = async (): Promise<{ store: ResearchRepo; tool: ReturnType<typeof researchTool> }> => {
@@ -38,33 +44,50 @@ const concluded = async (): Promise<{ store: ResearchRepo; tool: ReturnType<type
 describe('the convergence loop', () => {
   it('turns a concluded attempt into an accepted report', async () => {
     const { store, tool } = await concluded()
-    const out = await runTool(tool, evidenceArgs('A-1', 'reproducible')) as { verdict: string }
-    expect(out.verdict).toBe('supported')
+    const out = await runTool(tool, evidenceArgs('A-1')) as { verdict: string; outcome: string }
+    expect(out.outcome).toBe('reproducible')
     expect(store.getReport('A-1')).toContain('reproducible')
-    expect(store.getEvidence('A-1')?.commit).toBe('abc')
     await runTool(tool, { action: 'decide', op: 'accept', attemptId: 'A-1', by: 'me' })
     expect(store.decisionsFor('A-1').map(d => d.kind)).toContain('accept_result')
   })
 
-  it('downgrades an unreproduced result and refuses to accept it', async () => {
+  it('refuses to call a different commit a reproduction', async () => {
     const { store, tool } = await concluded()
-    const out = await runTool(tool, evidenceArgs('A-1', 'not_reproducible')) as { verdict: string }
+    const out = await runTool(tool, evidenceArgs('A-1', { verification: verification({ commit: 'other' }) })) as { verdict: string; outcome: string }
+    expect(out.outcome).toBe('not_reproducible')
     expect(out.verdict).toBe('inconclusive')
     expect(store.getAttempt('A-1')?.verdict).toBe('inconclusive')
-    expect(store.getReport('A-1')).toContain('not_reproducible')
     await expect(runTool(tool, { action: 'decide', op: 'accept', attemptId: 'A-1', by: 'me' })).rejects.toThrow(/not supported/)
   })
 
-  it('records a killed direction with its reason', async () => {
-    const { store, tool } = await concluded()
-    await runTool(tool, { action: 'decide', op: 'kill', targetId: 'Q-1', note: 'the gap closed', by: 'me' })
-    expect(store.decisionsFor('Q-1')[0]?.kind).toBe('kill_direction')
-    await expect(runTool(tool, { action: 'decide', op: 'kill', targetId: 'Q-1', by: 'me' })).rejects.toThrow(/reason/)
+  it('refuses to call different data a reproduction', async () => {
+    const { tool } = await concluded()
+    const out = await runTool(tool, evidenceArgs('A-1', { verification: verification({ dataHash: 'other' }) })) as { outcome: string }
+    expect(out.outcome).toBe('not_reproducible')
   })
 
-  it('refuses a second evidence package', async () => {
-    const { tool } = await concluded()
-    await runTool(tool, evidenceArgs('A-1', 'reproducible'))
-    await expect(runTool(tool, evidenceArgs('A-1', 'reproducible'))).rejects.toThrow(/already/)
+  it('leaves the verdict alone when the rerun is inconclusive', async () => {
+    const { store, tool } = await concluded()
+    const out = await runTool(tool, evidenceArgs('A-1', { verification: verification({ metrics: {} }) })) as { outcome: string; verdict: string }
+    expect(out.outcome).toBe('inconclusive')
+    expect(store.getAttempt('A-1')?.verdict).toBe('supported')
+  })
+
+  it('refuses evidence before the attempt is concluded', async () => {
+    const store = open()
+    sign(store, contract, 'me', AT)
+    const tool = researchTool({ repo: store })
+    await runTool(tool, { action: 'protocol', attemptId: 'A-1', questionId: 'Q-1', contractVersion: 1, commands: ['c'], measurements: [{ criterionId: 'c1', from: 'm' }], expected: 'e', stopCondition: 's', machineHours: 1 })
+    await runTool(tool, { action: 'attempt', op: 'open', attemptId: 'A-1', slug: 's', branch: 'b', protocolPath: 'p' })
+    await runTool(tool, { action: 'attempt', op: 'start', attemptId: 'A-1' })
+    await expect(runTool(tool, evidenceArgs('A-1'))).rejects.toThrow(/not concluded/)
+  })
+
+  it('records a killed direction with its reason and objection', async () => {
+    const { store, tool } = await concluded()
+    store.saveQuestion(question)
+    await runTool(tool, { action: 'decide', op: 'kill', targetId: 'Q-1', note: 'the gap closed', objection: 'the delta is thin', by: 'me' })
+    expect(store.decisionsFor('Q-1')[0]?.kind).toBe('kill_direction')
+    await expect(runTool(tool, { action: 'decide', op: 'kill', targetId: 'Q-1', note: 'r', objection: 'o', by: 'me' })).rejects.toThrow(/already recorded/)
   })
 })

@@ -14,7 +14,7 @@ const attempt: Attempt = {
 }
 const evidence: EvidencePackage = {
   attemptId: 'A-1', branch: 'b', commit: 'abc', image: 'pytorch', machineType: 'a100',
-  dataSnapshot: { kind: 'hash', value: 'sha256:1' }, command: 'python train.py',
+  dataHash: 'sha256:1', command: 'python train.py',
   logs: [], artifacts: [], metrics: { c1: '0.71' }, reproduce: 'bash reproduce.sh',
 }
 const input = (over: Partial<ReportInput> = {}): ReportInput => ({

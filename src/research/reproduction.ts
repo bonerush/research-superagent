@@ -23,17 +23,17 @@ const toleranceOf = (criterion: Contract['criteria'][number]): number => {
  * Compares a rerun with the original evidence.
  * Code, data and command must match exactly: a different commit or a different data hash is a different experiment,
  * however close the numbers look. Metrics are compared per criterion inside the tolerance the contract set;
- * a missing value makes the answer inconclusive rather than a pass.
+ * a blank or missing value makes the answer inconclusive rather than a pass.
  */
 export function checkReproduction(original: EvidencePackage, verification: Verification, contract: Contract): Reproducibility {
   if (verification.commit !== original.commit) return 'not_reproducible'
-  if (verification.dataHash !== original.dataSnapshot.value) return 'not_reproducible'
+  if (verification.dataHash !== original.dataHash) return 'not_reproducible'
   if (verification.command !== original.command) return 'not_reproducible'
   let missing = false
   for (const criterion of contract.criteria) {
-    const was = original.metrics[criterion.id]
-    const now = verification.metrics[criterion.id]
-    if (was === undefined || now === undefined) { missing = true; continue }
+    const was = original.metrics[criterion.id]?.trim()
+    const now = verification.metrics[criterion.id]?.trim()
+    if (!was || !now) { missing = true; continue }
     const wasValue = Number(was)
     const nowValue = Number(now)
     if (Number.isFinite(wasValue) && Number.isFinite(nowValue)) {
@@ -47,11 +47,11 @@ export function checkReproduction(original: EvidencePackage, verification: Verif
 
 /**
  * Applies a reproduction to a concluded attempt.
- * A reproduced result keeps its verdict; anything else is downgraded to inconclusive, because the ledger must not
- * carry a supported claim that a rerun could not stand behind.
+ * Only a confirmed failure to reproduce downgrades the verdict; an inconclusive rerun (a missing value) leaves the
+ * attempt alone and asks for a better rerun, because the machine did not disprove anything.
  */
 export function settle(attempt: Attempt, outcome: Reproducibility): Attempt {
   if (attempt.status !== 'concluded') throw new Error(`attempt ${attempt.id} is not concluded`)
-  if (outcome === 'reproducible') return attempt
+  if (outcome !== 'not_reproducible') return attempt
   return { ...attempt, verdict: 'inconclusive' }
 }

@@ -21,9 +21,15 @@ export function accept(attempt: Attempt, outcome: Reproducibility, by: string, a
   }
 }
 
-/** Ends a direction. The reason is required: a direction killed without one teaches the next batch nothing. */
-export function kill(targetId: string, note: string, by: string, at: string): Decision {
-  if (!note.trim()) throw new Error('a killed direction needs a reason')
+/**
+ * Ends a direction.
+ * A reason alone is not enough: the critic objection is what a person needs to read before agreeing, and a kill
+ * recorded without it teaches the next batch nothing.
+ */
+export function kill(targetId: string, reason: string, objection: string, by: string, at: string): Decision {
+  if (!targetId.trim()) throw new Error('a killed direction needs a target')
+  if (!reason.trim()) throw new Error('a killed direction needs a reason')
+  if (!objection.trim()) throw new Error('a killed direction needs the critic objection')
   return {
     id: `kill-${targetId}`,
     kind: 'kill_direction',
@@ -31,6 +37,6 @@ export function kill(targetId: string, note: string, by: string, at: string): De
     actor: 'human',
     by,
     at: assertIsoTimestamp(at),
-    note: note.trim(),
+    note: [reason.trim(), '', `Objection: ${objection.trim()}`].join(String.fromCharCode(10)),
   }
 }

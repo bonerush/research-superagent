@@ -265,3 +265,19 @@ it('turns a concluded attempt into an accepted report', async () => {
 **R3 — `settleVerdict` 是唯一能改 concluded 尝试 verdict 的入口。** `saveAttempt` 仍然拒绝改写终态；只有复现失败这一条路径能把 supported 降为 inconclusive。
 
 **R4 — 报告存 `reports` 表，而不是只落 git。** 面板与飞书要读它，文件镜像留给计划 5。
+
+## Rulings（执行时的偏离与决定）
+
+**R1 — 主会话字符预算 63,000 → 64,500。** 工具面 21,639，合计 63,833；evidence 与 decide 是收敛闭环在人这一侧的唯一入口。
+
+**R2 — 复现判定由 `checkReproduction` 现算，不接受调用方自报的 outcome。** 工具只收一次独立重跑的 verification（commit、数据哈希、命令、指标），判定在 handler 里算出来再封存。
+
+**R3 — 证据封存要求尝试已 concluded。** 过早的证据会留下一条无法配报告的记录；inconclusive 的重跑可以覆盖上一份证据（机器什么都没证伪），reproducible 与 not_reproducible 不能。
+
+**R4 — `downgradeToInconclusive` 取代原计划里的 `settleVerdict`。** 只允许 supported → inconclusive，不接受空值，不允许升 verdict 或清空；这是唯一能改 concluded verdict 的入口。
+
+**R5 — inconclusive 的重跑不降级。** 设计 §10 只规定 not_reproducible 降级；把「不知道」也降级会永久毁掉一份本来 supported 的结论。
+
+**R6 — 证据包存内容哈希 `dataHash`，不再有 path/copy。** 把路径当哈希是语义错误：同一路径上的数据被替换仍会「复现」。
+
+**R7 — 判死必须同时给理由与批判意见**（`note` 与 `objection` 都非空），目标必须是已存在的问题；`accept` 要求已封存报告；同一 id 的 Decision 重复写入被拒。

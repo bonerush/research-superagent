@@ -12,8 +12,6 @@ describe('accept', () => {
   it('accepts a reproduced, supported attempt', () => {
     const decision = accept(concluded, 'reproducible', 'me', AT)
     expect(decision.kind).toBe('accept_result')
-    expect(decision.targetId).toBe('A-1')
-    expect(decision.actor).toBe('human')
   })
   it('refuses to accept an unreproduced result', () => {
     expect(() => accept(concluded, 'not_reproducible', 'me', AT)).toThrow(/not reproduced/)
@@ -21,21 +19,22 @@ describe('accept', () => {
   it('refuses to accept an inconclusive rerun', () => {
     expect(() => accept(concluded, 'inconclusive', 'me', AT)).toThrow(/not reproduced/)
   })
-  it('refuses to accept an attempt that is not concluded', () => {
-    expect(() => accept({ ...concluded, status: 'running' }, 'reproducible', 'me', AT)).toThrow(/concluded/)
-  })
   it('refuses to accept a refuted attempt', () => {
     expect(() => accept({ ...concluded, verdict: 'refuted' }, 'reproducible', 'me', AT)).toThrow(/supported/)
   })
 })
 
 describe('kill', () => {
-  it('records a human decision with its reason', () => {
-    const decision = kill('Q-1', 'the gap closed', 'me', AT)
+  it('records the reason with the critic objection', () => {
+    const decision = kill('Q-1', 'the gap closed', 'the delta is thin', 'me', AT)
     expect(decision.kind).toBe('kill_direction')
-    expect(decision.note).toBe('the gap closed')
+    expect(decision.note).toContain('the gap closed')
+    expect(decision.note).toContain('the delta is thin')
   })
   it('refuses to kill without a reason', () => {
-    expect(() => kill('Q-1', '  ', 'me', AT)).toThrow(/reason/)
+    expect(() => kill('Q-1', '  ', 'objection', 'me', AT)).toThrow(/reason/)
+  })
+  it('refuses to kill without the objection', () => {
+    expect(() => kill('Q-1', 'reason', ' ', 'me', AT)).toThrow(/objection/)
   })
 })

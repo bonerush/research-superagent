@@ -8,7 +8,7 @@ import type { EvidencePackage } from '../../research/evidence.ts'
 import { pick } from '../../research/pick.ts'
 import type { Batch, Candidate } from '../../research/proposal.ts'
 import { draftReport } from '../../research/report.ts'
-import { settle, type Reproducibility } from '../../research/reproduction.ts'
+import { checkReproduction, settle, type Reproducibility } from '../../research/reproduction.ts'
 import { sign } from '../../research/sign.ts'
 import type { MachinePort } from '../machine-port.ts'
 import type { ResearchRepo } from '../store-research.ts'
@@ -29,6 +29,7 @@ const CandidateSchema = z.object({
 })
 const ReviewSchema = z.object({ candidateId: z.string().min(1), verdict: z.enum(['keep', 'drop']), reason: z.string().min(1) })
 const MeasurementSchema = z.object({ criterionId: z.string().min(1), from: z.string().min(1) })
+const VerificationSchema = z.object({ commit: z.string().min(1), dataHash: z.string().min(1), command: z.string().min(1), metrics: z.record(z.string(), z.string()) })
 
 const Action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('propose'), id: z.string().min(1), direction: z.string().min(1), candidates: z.array(CandidateSchema).min(2).max(5) }),
@@ -37,9 +38,9 @@ const Action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('sign'), batchId: z.string().min(1), candidateId: z.string().min(1), requirement: z.string().min(1), version: z.number().int().positive(), by: z.string().min(1) }),
   z.object({ action: z.literal('protocol'), attemptId: z.string().min(1), questionId: z.string().min(1), contractVersion: z.number().int().positive(), commands: z.array(z.string().min(1)).min(1), measurements: z.array(MeasurementSchema).min(1), expected: z.string().min(1), stopCondition: z.string().min(1), machineHours: z.number().positive() }),
   z.object({ action: z.literal('attempt'), op: z.enum(['open', 'start', 'wait', 'conclude']), attemptId: z.string().min(1), slug: z.string().optional(), branch: z.string().optional(), protocolPath: z.string().optional(), verdict: z.enum(['supported', 'refuted', 'inconclusive']).optional(), evidence: z.array(z.string()).optional() }),
-  z.object({ action: z.literal('run'), id: z.string().min(1), attemptId: z.string().min(1), machine: z.string().min(1), image: z.string().min(1), commit: z.string().min(1), command: z.string().min(1), startedAt: z.string().min(1), params: z.record(z.string(), z.string()).optional(), endedAt: z.string().optional(), costYuan: z.number().nonnegative().optional(), artifacts: z.array(z.string()).optional() }),
-  z.object({ action: z.literal('evidence'), attemptId: z.string().min(1), outcome: z.enum(['reproducible', 'not_reproducible', 'inconclusive']), branch: z.string().min(1), commit: z.string().min(1), image: z.string().min(1), machineType: z.string().min(1), dataKind: z.enum(['hash', 'path', 'copy']), dataValue: z.string().min(1), command: z.string().min(1), metrics: z.record(z.string(), z.string()), reproduce: z.string().min(1), logs: z.array(z.string()).optional(), artifacts: z.array(z.string()).optional() }),
-  z.object({ action: z.literal('decide'), op: z.enum(['accept', 'kill']), attemptId: z.string().optional(), targetId: z.string().optional(), note: z.string().optional(), by: z.string().min(1) }),
+  z.object({ action: z.literal('run'), id: z.string().min(1), attemptId: z.string().min(1), kind: z.enum(['experiment', 'verification']).optional(), machine: z.string().min(1), image: z.string().min(1), commit: z.string().min(1), command: z.string().min(1), startedAt: z.string().min(1), params: z.record(z.string(), z.string()).optional(), endedAt: z.string().optional(), costYuan: z.number().nonnegative().optional(), artifacts: z.array(z.string()).optional() }),
+  z.object({ action: z.literal('evidence'), attemptId: z.string().min(1), branch: z.string().min(1), commit: z.string().min(1), image: z.string().min(1), machineType: z.string().min(1), dataHash: z.string().min(1), command: z.string().min(1), metrics: z.record(z.string(), z.string()), reproduce: z.string().min(1), envFile: z.string().optional(), logs: z.array(z.string()).optional(), artifacts: z.array(z.string()).optional(), verification: VerificationSchema }),
+  z.object({ action: z.literal('decide'), op: z.enum(['accept', 'kill']), attemptId: z.string().optional(), targetId: z.string().optional(), note: z.string().optional(), objection: z.string().optional(), by: z.string().min(1) }),
   z.object({ action: z.literal('machine'), op: z.enum(['status', 'on', 'off', 'balance']) }),
   z.object({ action: z.literal('status'), batchId: z.string().optional() }),
 ])
@@ -115,29 +116,34 @@ export function researchTool(deps: ResearchToolDeps): Tool {
         return { status: done.status, verdict: done.verdict }
       }
       if (args.action === 'run') {
-        repo.addRun({ id: args.id, attemptId: args.attemptId, kind: 'experiment', machine: args.machine, image: args.image,
+        repo.addRun({ id: args.id, attemptId: args.attemptId, kind: args.kind ?? 'experiment', machine: args.machine, image: args.image,
           commit: args.commit, command: args.command, params: args.params ?? {}, startedAt: args.startedAt,
           ...(args.endedAt ? { endedAt: args.endedAt } : {}), ...(args.costYuan != null ? { costYuan: args.costYuan } : {}),
           artifacts: args.artifacts ?? [] })
         return { run: args.id, cost: repo.costOfAttempt(args.attemptId) }
       }
       if (args.action === 'evidence') {
-        const pkg: EvidencePackage = {
-          attemptId: args.attemptId, branch: args.branch, commit: args.commit, image: args.image,
-          machineType: args.machineType, dataSnapshot: { kind: args.dataKind, value: args.dataValue },
-          command: args.command, logs: args.logs ?? [], artifacts: args.artifacts ?? [],
-          metrics: args.metrics, reproduce: args.reproduce,
-        }
-        repo.saveEvidence(pkg, args.outcome)
         const attempt = repo.getAttempt(args.attemptId)
         if (!attempt) throw new Error(`unknown attempt ${args.attemptId}`)
+        if (attempt.status !== 'concluded') throw new Error(`attempt ${args.attemptId} is not concluded`)
         const contract = repo.getContract(attempt.contractVersion)
         if (!contract) throw new Error(`attempt ${args.attemptId} has no signed contract`)
-        const settled = settle(attempt, args.outcome)
-        if (settled.verdict !== attempt.verdict) repo.settleVerdict(attempt.id, settled.verdict)
-        const text = draftReport({ attempt: settled, contract, evidence: pkg, outcome: args.outcome, costYuan: repo.costOfAttempt(args.attemptId) })
-        repo.saveReport(args.attemptId, text)
-        return { verdict: settled.verdict, report: text }
+        const pkg: EvidencePackage = {
+          attemptId: args.attemptId, branch: args.branch, commit: args.commit, image: args.image,
+          machineType: args.machineType, dataHash: args.dataHash, command: args.command,
+          ...(args.envFile ? { envFile: args.envFile } : {}),
+          logs: args.logs ?? [], artifacts: args.artifacts ?? [], metrics: args.metrics, reproduce: args.reproduce,
+        }
+        const outcome = checkReproduction(pkg, args.verification, contract)
+        repo.saveEvidence(pkg, outcome)
+        const settled = settle(attempt, outcome)
+        if (settled.verdict !== attempt.verdict) repo.downgradeToInconclusive(attempt.id)
+        const runs = repo.runsOf(attempt.id)
+        const verificationYuan = runs.filter(run => run.kind === 'verification').reduce((total, run) => total + (run.costYuan ?? 0), 0)
+        const text = draftReport({ attempt: settled, contract, evidence: pkg, outcome, costYuan: repo.costOfAttempt(attempt.id),
+          ...(verificationYuan ? { verificationYuan } : {}) })
+        repo.saveReport(attempt.id, text)
+        return { verdict: settled.verdict, outcome, report: text }
       }
       if (args.action === 'decide') {
         if (args.op === 'accept') {
@@ -146,11 +152,14 @@ export function researchTool(deps: ResearchToolDeps): Tool {
           if (!attempt) throw new Error(`unknown attempt ${args.attemptId}`)
           const evidence = repo.getEvidence(args.attemptId)
           if (!evidence) throw new Error(`attempt ${args.attemptId} has no evidence`)
+          if (!repo.getReport(args.attemptId)) throw new Error(`attempt ${args.attemptId} has no report`)
           repo.recordDecision(accept(attempt, evidence.outcome as Reproducibility, args.by, now()))
           return { accepted: args.attemptId }
         }
         if (!args.targetId) throw new Error('kill needs a target')
-        repo.recordDecision(kill(args.targetId, args.note ?? '', args.by, now()))
+        const question = repo.getQuestion(args.targetId)
+        if (!question) throw new Error(`unknown question ${args.targetId}`)
+        repo.recordDecision(kill(args.targetId, args.note ?? '', args.objection ?? '', args.by, now()))
         return { killed: args.targetId }
       }
       if (args.action === 'machine') {

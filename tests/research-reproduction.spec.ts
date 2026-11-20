@@ -10,7 +10,7 @@ const contract: Contract = {
 }
 const pkg: EvidencePackage = {
   attemptId: 'A-1', branch: 'feat/x', commit: 'abc', image: 'pytorch', machineType: 'a100',
-  dataSnapshot: { kind: 'hash', value: 'sha256:1' }, command: 'python train.py',
+  dataHash: 'sha256:1', command: 'python train.py',
   logs: [], artifacts: [], metrics: { c1: '0.71' }, reproduce: 'bash reproduce.sh',
 }
 const verify = (over: Partial<Verification> = {}): Verification => ({
@@ -33,6 +33,9 @@ describe('checkReproduction', () => {
   it('is inconclusive when a metric is missing', () => {
     expect(checkReproduction(pkg, verify({ metrics: {} }), contract)).toBe('inconclusive')
   })
+  it('is inconclusive when a rerun value is blank', () => {
+    expect(checkReproduction(pkg, verify({ metrics: { c1: '   ' } }), contract)).toBe('inconclusive')
+  })
   it('honours the tolerance the contract states', () => {
     expect(checkReproduction(pkg, verify({ metrics: { c1: '0.705' } }), contract)).toBe('reproducible')
   })
@@ -47,8 +50,11 @@ const concluded: Attempt = {
 }
 
 describe('settle', () => {
-  it('downgrades an unreproduced result to inconclusive', () => {
+  it('downgrades a confirmed failure to reproduce', () => {
     expect(settle(concluded, 'not_reproducible').verdict).toBe('inconclusive')
+  })
+  it('leaves an inconclusive rerun alone', () => {
+    expect(settle(concluded, 'inconclusive').verdict).toBe('supported')
   })
   it('keeps a reproduced result', () => {
     expect(settle(concluded, 'reproducible').verdict).toBe('supported')
