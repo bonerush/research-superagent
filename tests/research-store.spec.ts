@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { ResearchRepo, createResearchSchema } from '../src/app/store-research.ts'
 import { freezeContract } from '../src/research/contract.ts'
-import type { Contract, Question } from '../src/research/model.ts'
+import type { Attempt, Contract, Question, Run } from '../src/research/model.ts'
 
 const open = (): ResearchRepo => {
   const db = new DatabaseSync(':memory:')
@@ -22,6 +22,17 @@ const base: Contract = {
 }
 
 const f1 = freezeContract(base, 'human', '2026-11-21T00:00:00.000Z')
+
+const a: Attempt = {
+  id: 'A-1', slug: 'x', questionId: 'Q-0001', contractVersion: 1,
+  branch: 'feat/x', protocolPath: 'research/attempts/x.md', status: 'running',
+}
+
+const r: Run = {
+  id: 'R-1', attemptId: 'A-1', kind: 'experiment', machine: 'autodl-4090',
+  image: 'pytorch:2.4', commit: 'abc123', command: 'python train.py', params: {},
+  startedAt: '2026-11-21T00:00:00.000Z', artifacts: [],
+}
 
 describe('ResearchRepo questions', () => {
   it('round-trips a question', () => {
@@ -54,5 +65,26 @@ describe('ResearchRepo contracts', () => {
     const repo = open()
     repo.saveContract(f1)
     expect(() => repo.saveContract({ ...f1, budgetCapYuan: 999, hash: 'other' })).toThrow(/frozen/)
+  })
+})
+
+describe('ResearchRepo attempts', () => {
+  it('sums the runs of an attempt', () => {
+    const repo = open()
+    repo.saveAttempt(a)
+    repo.addRun({ ...r, id: 'R-1', costYuan: 1.5 })
+    repo.addRun({ ...r, id: 'R-2', costYuan: 2 })
+    expect(repo.costOfAttempt('A-1')).toBe(3.5)
+  })
+  it('reports zero for an attempt with no run', () => {
+    const repo = open()
+    repo.saveAttempt(a)
+    expect(repo.costOfAttempt('A-1')).toBe(0)
+  })
+  it('accepts a verification run after the attempt concluded', () => {
+    const repo = open()
+    repo.saveAttempt({ ...a, status: 'concluded', verdict: 'supported' })
+    repo.addRun({ ...r, kind: 'verification' })
+    expect(repo.getAttempt('A-1')?.verdict).toBe('supported')
   })
 })

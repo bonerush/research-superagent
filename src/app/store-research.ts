@@ -1,6 +1,6 @@
 /** Persistence for the research domain. Its own database, not the ticket store's schema. */
 import type { DatabaseSync } from 'node:sqlite'
-import type { FrozenContract, Question } from '../research/model.ts'
+import type { Attempt, FrozenContract, Question, Run } from '../research/model.ts'
 
 const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS questions (id TEXT PRIMARY KEY, statement TEXT NOT NULL, precision TEXT NOT NULL, prediction TEXT, test TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL)',
@@ -23,6 +23,18 @@ const toQuestion = (row: Record<string, unknown>): Question => ({
   ...(row.test == null ? {} : { test: String(row.test) }),
   status: row.status as Question['status'],
   createdAt: String(row.created_at),
+})
+
+const toAttempt = (row: Record<string, unknown>): Attempt => ({
+  id: String(row.id),
+  slug: String(row.slug),
+  questionId: String(row.question_id),
+  contractVersion: Number(row.contract_version),
+  branch: String(row.branch),
+  protocolPath: String(row.protocol_path),
+  ...(row.agenda_entry_id == null ? {} : { agendaEntryId: String(row.agenda_entry_id) }),
+  status: row.status as Attempt['status'],
+  ...(row.verdict == null ? {} : { verdict: row.verdict as Attempt['verdict'] }),
 })
 
 /** Reads and writes the five research aggregates. */
@@ -67,5 +79,38 @@ export class ResearchRepo {
   getContract(version: number): FrozenContract | undefined {
     const row = this.db.prepare('SELECT json FROM contracts WHERE version = ?').get(version) as { json?: string } | undefined
     return row?.json ? (JSON.parse(row.json) as FrozenContract) : undefined
+  }
+
+  /** Inserts or updates one attempt, keyed by its id. */
+  saveAttempt(attempt: Attempt): void {
+    this.db.prepare(
+      'INSERT OR REPLACE INTO attempts (id, slug, question_id, contract_version, branch, protocol_path, agenda_entry_id, status, verdict) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(
+      attempt.id, attempt.slug, attempt.questionId, attempt.contractVersion, attempt.branch,
+      attempt.protocolPath, attempt.agendaEntryId ?? null, attempt.status, attempt.verdict ?? null,
+    )
+  }
+
+  /** One attempt, or undefined when the id is unknown. */
+  getAttempt(id: string): Attempt | undefined {
+    const row = this.db.prepare('SELECT * FROM attempts WHERE id = ?').get(id) as Record<string, unknown> | undefined
+    return row ? toAttempt(row) : undefined
+  }
+
+  /** Records one boot. It never touches the attempt row, so a verification run after a verdict keeps the verdict. */
+  addRun(run: Run): void {
+    this.db.prepare(
+      'INSERT INTO runs (id, attempt_id, kind, machine, image, git_commit, command, params, started_at, ended_at, cost_yuan, log_path, artifacts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(
+      run.id, run.attemptId, run.kind, run.machine, run.image, run.commit, run.command,
+      JSON.stringify(run.params), run.startedAt, run.endedAt ?? null, run.costYuan ?? null,
+      run.logPath ?? null, JSON.stringify(run.artifacts),
+    )
+  }
+
+  /** Money spent by one attempt across all its runs, in yuan. */
+  costOfAttempt(id: string): number {
+    const row = this.db.prepare('SELECT COALESCE(SUM(cost_yuan), 0) AS total FROM runs WHERE attempt_id = ?').get(id) as { total?: number } | undefined
+    return row?.total ?? 0
   }
 }
