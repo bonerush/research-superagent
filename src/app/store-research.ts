@@ -45,11 +45,22 @@ export class ResearchRepo {
     return row ? toQuestion(row) : undefined
   }
 
-  /** Stores a frozen contract under its version. */
+  /**
+   * Stores a frozen contract under its version.
+   * An identical save is a no-op; a different body under a taken version throws, because that is the version a person signed.
+   */
   saveContract(contract: FrozenContract): void {
+    const existing = this.getContract(contract.version)
+    if (existing) {
+      if (existing.hash === contract.hash) return
+      throw new Error(`contract version ${contract.version} is frozen`)
+    }
     this.db.prepare(
-      'INSERT OR REPLACE INTO contracts (version, json, hash, signed_by, signed_at) VALUES (?, ?, ?, ?, ?)',
-    ).run(contract.version, JSON.stringify(contract), contract.hash, contract.signedBy, contract.signedAt ?? '')
+      'INSERT INTO contracts (version, json, hash, signed_by, signed_at) VALUES (?, ?, ?, ?, ?)',
+    ).run(
+      contract.version, JSON.stringify(contract), contract.hash,
+      contract.signedBy, contract.signedAt ?? '',
+    )
   }
 
   /** One frozen contract, or undefined when the version is unknown. */

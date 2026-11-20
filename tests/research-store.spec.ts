@@ -1,7 +1,8 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { ResearchRepo, createResearchSchema } from '../src/app/store-research.ts'
-import type { Question } from '../src/research/model.ts'
+import { freezeContract } from '../src/research/contract.ts'
+import type { Contract, Question } from '../src/research/model.ts'
 
 const open = (): ResearchRepo => {
   const db = new DatabaseSync(':memory:')
@@ -14,7 +15,15 @@ const q: Question = {
   createdAt: '2026-11-21T00:00:00.000Z',
 }
 
-describe('ResearchRepo', () => {
+const base: Contract = {
+  version: 1, goal: 'g', requirement: 'r',
+  criteria: [{ id: 'c1', statement: 's' }],
+  budgetCapYuan: 100, stopCondition: 't', signedBy: 'human',
+}
+
+const f1 = freezeContract(base, 'human', '2026-11-21T00:00:00.000Z')
+
+describe('ResearchRepo questions', () => {
   it('round-trips a question', () => {
     const repo = open()
     repo.saveQuestion(q)
@@ -27,5 +36,23 @@ describe('ResearchRepo', () => {
     const repo = open()
     repo.saveQuestion({ ...q, precision: 'hypothesis', prediction: 'p', test: 't' })
     expect(repo.getQuestion('Q-0001')?.test).toBe('t')
+  })
+})
+
+describe('ResearchRepo contracts', () => {
+  it('round-trips a frozen contract', () => {
+    const repo = open()
+    repo.saveContract(f1)
+    expect(repo.getContract(1)?.hash).toBe(f1.hash)
+  })
+  it('is idempotent for an identical save', () => {
+    const repo = open()
+    repo.saveContract(f1)
+    expect(() => repo.saveContract(f1)).not.toThrow()
+  })
+  it('refuses to overwrite a frozen contract', () => {
+    const repo = open()
+    repo.saveContract(f1)
+    expect(() => repo.saveContract({ ...f1, budgetCapYuan: 999, hash: 'other' })).toThrow(/frozen/)
   })
 })
