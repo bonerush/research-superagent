@@ -5,8 +5,8 @@ import { usePanel } from './provider.tsx'
 import { LoadState, Section } from './widgets.tsx'
 
 /**
- * One screen with three lists: the batches to pick from, the attempts to judge, and the reports drawn for them.
- * An empty list says so plainly instead of hiding the section, so a quiet week looks quiet rather than broken.
+ * One screen with four lists: the contracts to sign, the batches to pick from, the attempts to judge, and the reports
+ * drawn for them. An empty list says so plainly instead of hiding the section, so a quiet week looks quiet.
  */
 export function ResearchPage(): ReactNode {
   const { t, call } = usePanel()
@@ -14,6 +14,13 @@ export function ResearchPage(): ReactNode {
   if (!data) return <LoadState error={error} loading />
   const empty = <p className="dt-hint">{t('researchNone')}</p>
   return <div className="dt-column">
+    <Section title={t('researchContracts')} count={data.contracts.length}>
+      {data.contracts.length === 0 ? empty : <ul className="dt-list">
+        {data.contracts.map(contract => <li key={contract.batchId} className="dt-row">
+          <span className="dt-mono">{contract.batchId}</span> {contract.direction} · {contract.candidateId}
+        </li>)}
+      </ul>}
+    </Section>
     <Section title={t('researchBatches')} count={data.batches.length}>
       {data.batches.length === 0 ? empty : <ul className="dt-list">
         {data.batches.map(batch => <li key={batch.id} className="dt-row">

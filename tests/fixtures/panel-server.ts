@@ -293,7 +293,7 @@ const SourceSave = z.object({ enabled: z.boolean(), config: z.unknown() })
 const ROUTES: { [K in keyof Api]: Route<K> } = {
   'GET state': { answer: stateView },
   'GET overview': { answer: overviewView },
-  'GET research': { answer: () => ({ batches: [], attempts: [], reports: [] }) },
+  'GET research': { answer: () => ({ contracts: [], batches: [], attempts: [], reports: [] }) },
   'GET search': { query: ['q'], answer: async ({ query }) => {
     const q = query.q ?? ''
     await server.searching?.(q)

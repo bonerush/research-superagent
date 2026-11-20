@@ -56,7 +56,7 @@ export function researchTool(deps: ResearchToolDeps): Tool {
   const { repo } = deps
   return make({
     name: 'research',
-    description: 'The research ledger: propose, critique, pick and sign build the contract; protocol, attempt and run execute it; evidence, decide and machine converge it; status reads.',
+    description: 'The research ledger: propose, critique, pick and sign build the contract; protocol, attempt and run execute it; evidence, decide and machine converge it; status reads. pick, sign and decide record what the person decided and may only be called after they said it.',
     schema: Action,
     execute: async (args) => {
       if (args.action === 'propose') {
