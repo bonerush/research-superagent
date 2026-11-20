@@ -1,10 +1,14 @@
-/** One main Session tool for the whole research loop: propose, critique, pick, sign, then run the attempt on the machine. */
+/** One main Session tool for the whole research loop: propose, critique, pick, sign, run the attempt, then converge it. */
 import { z } from 'zod'
 import { conclude, openAttempt, startAttempt, waitAttempt } from '../../research/attempt.ts'
 import { critique, presentable, saveBatch } from '../../research/batch.ts'
+import { accept, kill } from '../../research/decide.ts'
 import { draftContract } from '../../research/draft.ts'
+import type { EvidencePackage } from '../../research/evidence.ts'
 import { pick } from '../../research/pick.ts'
 import type { Batch, Candidate } from '../../research/proposal.ts'
+import { draftReport } from '../../research/report.ts'
+import { settle, type Reproducibility } from '../../research/reproduction.ts'
 import { sign } from '../../research/sign.ts'
 import type { MachinePort } from '../machine-port.ts'
 import type { ResearchRepo } from '../store-research.ts'
@@ -34,6 +38,8 @@ const Action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('protocol'), attemptId: z.string().min(1), questionId: z.string().min(1), contractVersion: z.number().int().positive(), commands: z.array(z.string().min(1)).min(1), measurements: z.array(MeasurementSchema).min(1), expected: z.string().min(1), stopCondition: z.string().min(1), machineHours: z.number().positive() }),
   z.object({ action: z.literal('attempt'), op: z.enum(['open', 'start', 'wait', 'conclude']), attemptId: z.string().min(1), slug: z.string().optional(), branch: z.string().optional(), protocolPath: z.string().optional(), verdict: z.enum(['supported', 'refuted', 'inconclusive']).optional(), evidence: z.array(z.string()).optional() }),
   z.object({ action: z.literal('run'), id: z.string().min(1), attemptId: z.string().min(1), machine: z.string().min(1), image: z.string().min(1), commit: z.string().min(1), command: z.string().min(1), startedAt: z.string().min(1), params: z.record(z.string(), z.string()).optional(), endedAt: z.string().optional(), costYuan: z.number().nonnegative().optional(), artifacts: z.array(z.string()).optional() }),
+  z.object({ action: z.literal('evidence'), attemptId: z.string().min(1), outcome: z.enum(['reproducible', 'not_reproducible', 'inconclusive']), branch: z.string().min(1), commit: z.string().min(1), image: z.string().min(1), machineType: z.string().min(1), dataKind: z.enum(['hash', 'path', 'copy']), dataValue: z.string().min(1), command: z.string().min(1), metrics: z.record(z.string(), z.string()), reproduce: z.string().min(1), logs: z.array(z.string()).optional(), artifacts: z.array(z.string()).optional() }),
+  z.object({ action: z.literal('decide'), op: z.enum(['accept', 'kill']), attemptId: z.string().optional(), targetId: z.string().optional(), note: z.string().optional(), by: z.string().min(1) }),
   z.object({ action: z.literal('machine'), op: z.enum(['status', 'on', 'off', 'balance']) }),
   z.object({ action: z.literal('status'), batchId: z.string().optional() }),
 ])
@@ -44,12 +50,12 @@ export interface ResearchToolDeps {
   machine?: MachinePort
 }
 
-/** The one research tool: the loop from a batch to a concluded attempt. */
+/** The one research tool: the loop from a batch to an accepted report. */
 export function researchTool(deps: ResearchToolDeps): Tool {
   const { repo } = deps
   return make({
     name: 'research',
-    description: 'The research ledger. propose, critique, pick and sign build the contract; protocol pre-registers the run; attempt drives it; run records a boot; machine asks for power; status reads.',
+    description: 'The research ledger: propose, critique, pick and sign build the contract; protocol, attempt and run execute it; evidence, decide and machine converge it; status reads.',
     schema: Action,
     execute: async (args) => {
       if (args.action === 'propose') {
@@ -114,6 +120,38 @@ export function researchTool(deps: ResearchToolDeps): Tool {
           ...(args.endedAt ? { endedAt: args.endedAt } : {}), ...(args.costYuan != null ? { costYuan: args.costYuan } : {}),
           artifacts: args.artifacts ?? [] })
         return { run: args.id, cost: repo.costOfAttempt(args.attemptId) }
+      }
+      if (args.action === 'evidence') {
+        const pkg: EvidencePackage = {
+          attemptId: args.attemptId, branch: args.branch, commit: args.commit, image: args.image,
+          machineType: args.machineType, dataSnapshot: { kind: args.dataKind, value: args.dataValue },
+          command: args.command, logs: args.logs ?? [], artifacts: args.artifacts ?? [],
+          metrics: args.metrics, reproduce: args.reproduce,
+        }
+        repo.saveEvidence(pkg, args.outcome)
+        const attempt = repo.getAttempt(args.attemptId)
+        if (!attempt) throw new Error(`unknown attempt ${args.attemptId}`)
+        const contract = repo.getContract(attempt.contractVersion)
+        if (!contract) throw new Error(`attempt ${args.attemptId} has no signed contract`)
+        const settled = settle(attempt, args.outcome)
+        if (settled.verdict !== attempt.verdict) repo.settleVerdict(attempt.id, settled.verdict)
+        const text = draftReport({ attempt: settled, contract, evidence: pkg, outcome: args.outcome, costYuan: repo.costOfAttempt(args.attemptId) })
+        repo.saveReport(args.attemptId, text)
+        return { verdict: settled.verdict, report: text }
+      }
+      if (args.action === 'decide') {
+        if (args.op === 'accept') {
+          if (!args.attemptId) throw new Error('accept needs an attempt')
+          const attempt = repo.getAttempt(args.attemptId)
+          if (!attempt) throw new Error(`unknown attempt ${args.attemptId}`)
+          const evidence = repo.getEvidence(args.attemptId)
+          if (!evidence) throw new Error(`attempt ${args.attemptId} has no evidence`)
+          repo.recordDecision(accept(attempt, evidence.outcome as Reproducibility, args.by, now()))
+          return { accepted: args.attemptId }
+        }
+        if (!args.targetId) throw new Error('kill needs a target')
+        repo.recordDecision(kill(args.targetId, args.note ?? '', args.by, now()))
+        return { killed: args.targetId }
       }
       if (args.action === 'machine') {
         const port = deps.machine

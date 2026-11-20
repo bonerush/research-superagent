@@ -310,7 +310,11 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/research/draft.ts` | `draftContract`: a signed-ready contract from a picked candidate, with the person's requirement kept apart from the candidate's own criteria |
 | `src/research/sign.ts` | `sign` and its `ContractSink` port: freeze once, record the human decision, refuse a second signature |
 | `src/app/research-runtime.ts` | `openResearch`: the research database in its own file, created on start and closed on shutdown |
-| `src/app/tools/research.ts` | The main Session's one research tool, a discriminated union over propose, critique, pick, sign, protocol, attempt, run, machine and status |
+| `src/app/tools/research.ts` | The main Session's one research tool, a discriminated union over propose, critique, pick, sign, protocol, attempt, run, evidence, decide, machine and status |
+| `src/research/evidence.ts` | The evidence package and `validateEvidence`: every contract criterion must carry a value before the package is stored |
+| `src/research/reproduction.ts` | `checkReproduction` and `settle`: a different commit or data hash is never a reproduction, and anything unreproduced is downgraded to inconclusive |
+| `src/research/report.ts` | `draftReport`: the verdict, the evidence, the reproduction, the money, the stop condition and what would change it |
+| `src/research/decide.ts` | `accept` and `kill`: acceptance needs a concluded, supported, reproduced attempt; a kill needs a reason |
 | `src/research/protocol.ts` | The pre-registered protocol: `Protocol`, `Measurement`, and `validateProtocol`, which refuses a criterion with no measurement |
 | `src/research/attempt.ts` | The attempt lifecycle: `openAttempt`, `startAttempt`, `waitAttempt`, `conclude`; an attempt that never ran cannot conclude |
 | `src/research/ledger.ts` | Rates, `runCost`, `assertNoOverlap` and `attemptCost`: two runs that overlap on one machine are refused |
@@ -464,6 +468,11 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/research-supervisor.spec.ts` | One supervision round in each machine state |
 | `tests/research-execution.spec.ts` | A signed contract through to a concluded, priced attempt |
 | `tests/research-execution-tool.spec.ts` | The same loop through the tool, and a conclusion whose evidence is not a run of that attempt |
+| `tests/research-evidence.spec.ts` | The evidence package refuses a missing criterion, commit or reproduce command |
+| `tests/research-reproduction.spec.ts` | Code, data and command must match; metrics inside tolerance; an unreproduced result settles to inconclusive |
+| `tests/research-report.spec.ts` | The report states the verdict, the reproduction, the cost and the stop condition |
+| `tests/research-decide.spec.ts` | Accepting needs a supported, reproduced, concluded attempt; a kill needs a reason |
+| `tests/research-convergence.spec.ts` | The whole convergence loop through the tool, including the refused acceptance |
 | `tests/delivery.spec.ts` | `AgentDelivery` |
 | `tests/retry-health.spec.ts`, `tests/role-models.spec.ts` | Model budget retries, and the models of the two roles |
 | `tests/runtime.spec.ts` | The whole application on a simulated DeepSeek Harness host, through tools and HTTP |

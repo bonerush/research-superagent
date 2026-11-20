@@ -1,4 +1,6 @@
 /** Persistence for the research domain. Its own database, not the ticket store's schema. */
+import type { EvidencePackage } from '../research/evidence.ts'
+import { validateEvidence } from '../research/evidence.ts'
 import type { DatabaseSync } from 'node:sqlite'
 import { verifyContract } from '../research/contract.ts'
 import { assertNoOverlap } from '../research/ledger.ts'
@@ -15,6 +17,8 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS batches (id TEXT PRIMARY KEY, json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL)',
   'CREATE TABLE IF NOT EXISTS protocols (attempt_id TEXT PRIMARY KEY, json TEXT NOT NULL)',
   'CREATE TABLE IF NOT EXISTS machine (id TEXT PRIMARY KEY, booted_at TEXT, off_at TEXT)',
+  'CREATE TABLE IF NOT EXISTS evidence (attempt_id TEXT PRIMARY KEY, json TEXT NOT NULL, outcome TEXT NOT NULL)',
+  'CREATE TABLE IF NOT EXISTS reports (attempt_id TEXT PRIMARY KEY, text TEXT NOT NULL)',
 ]
 
 /** Creates the research tables in an open database. Idempotent: safe on every start. */
@@ -257,5 +261,41 @@ export class ResearchRepo {
   /** Records a switch-off and clears the boot, so the next idle window starts from a real boot. */
   clearMachineBootedAt(at: string): void {
     this.db.prepare("INSERT OR REPLACE INTO machine (id, booted_at, off_at) VALUES ('self', NULL, ?)").run(assertIsoTimestamp(at))
+  }
+
+  /** Stores the evidence package once, after checking it against the contract the attempt was judged under. */
+  saveEvidence(pkg: EvidencePackage, outcome: string): void {
+    if (this.getEvidence(pkg.attemptId)) throw new Error(`attempt ${pkg.attemptId} already has evidence`)
+    const attempt = this.getAttempt(pkg.attemptId)
+    if (!attempt) throw new Error(`unknown attempt ${pkg.attemptId}`)
+    const contract = this.getContract(attempt.contractVersion)
+    if (!contract) throw new Error(`attempt ${pkg.attemptId} has no signed contract`)
+    validateEvidence(pkg, contract)
+    this.db.prepare('INSERT INTO evidence (attempt_id, json, outcome) VALUES (?, ?, ?)').run(pkg.attemptId, JSON.stringify(pkg), outcome)
+  }
+
+  /** The evidence of one attempt, with the reproduction outcome recorded beside it. */
+  getEvidence(attemptId: string): (EvidencePackage & { outcome: string }) | undefined {
+    const row = this.db.prepare('SELECT json, outcome FROM evidence WHERE attempt_id = ?').get(attemptId) as { json?: string; outcome?: string } | undefined
+    return row?.json ? { ...(JSON.parse(row.json) as EvidencePackage), outcome: String(row.outcome) } : undefined
+  }
+
+  /** Stores the report a person reads; a rewrite replaces the previous draft. */
+  saveReport(attemptId: string, text: string): void {
+    this.db.prepare('INSERT OR REPLACE INTO reports (attempt_id, text) VALUES (?, ?)').run(attemptId, text)
+  }
+
+  /** The report of one attempt, or undefined when none was drawn. */
+  getReport(attemptId: string): string | undefined {
+    const row = this.db.prepare('SELECT text FROM reports WHERE attempt_id = ?').get(attemptId) as { text?: string } | undefined
+    return row?.text
+  }
+
+  /** Rewrites only the verdict of a concluded attempt, which is what a failed reproduction does. */
+  settleVerdict(id: string, verdict: Attempt['verdict']): void {
+    const attempt = this.getAttempt(id)
+    if (!attempt) throw new Error(`unknown attempt ${id}`)
+    if (attempt.status !== 'concluded') throw new Error(`attempt ${id} is not concluded`)
+    this.db.prepare('UPDATE attempts SET verdict = ? WHERE id = ?').run(verdict ?? null, id)
   }
 }

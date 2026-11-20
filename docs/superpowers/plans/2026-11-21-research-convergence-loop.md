@@ -255,3 +255,13 @@ it('turns a concluded attempt into an accepted report', async () => {
 - Spec 覆盖：§5.4 收敛、§8.2 收成果、§10 可复现判据由本计划承担；判死的界面留给计划 5。
 - 五条 Review Focus 都落在任务上：1 → Task 1；2 → Task 2；3 → Task 5；4 → Task 4；5 → Task 5。
 - 证据与报告分两张表：一次尝试只有一份证据与一份报告，重跑历史在 runs 里。
+
+## Rulings（执行时的偏离与决定）
+
+**R1 — 主会话字符预算 63,000 → 64,500。** 工具面 21,639（`research` 单工具 6,155），合计 63,833。evidence 与 decide 是收敛闭环在人这一侧的唯一入口，没有它们报告与决定都无处落地。
+
+**R2 — 复现判定与证据一起存。** `evidence` 表带 `outcome` 列，`accept` 从证据里读判定，而不是让调用方再传一次：判定属于那次封存，重传会让账本出现两个真相。
+
+**R3 — `settleVerdict` 是唯一能改 concluded 尝试 verdict 的入口。** `saveAttempt` 仍然拒绝改写终态；只有复现失败这一条路径能把 supported 降为 inconclusive。
+
+**R4 — 报告存 `reports` 表，而不是只落 git。** 面板与飞书要读它，文件镜像留给计划 5。
