@@ -45,8 +45,9 @@ import { Settings } from './settings.ts'
 import { sourceContextOf, type SourceContextDeps } from './source-context.ts'
 import type { ResourceHost } from './resources.ts'
 import { mainTools, type MainToolsHost } from './tools/main.ts'
-import { researchTools } from './tools/research.ts'
-import { openResearch, type ResearchRuntime } from './research-runtime.ts'
+import { researchTool } from './tools/research.ts'
+import { machinePortFromEnv, machineTick, openResearch, type ResearchRuntime } from './research-runtime.ts'
+import type { MachinePort } from './machine-port.ts'
 import { executorTools, type ExecutorToolsHost } from './tools/executor.ts'
 
 // Source plugins interact with dsh-superagent exclusively through the `SourceHost` service interface.
@@ -85,6 +86,8 @@ export class Runtime extends Service implements SourceHost {
   private readonly sourceDeps: SourceContextDeps
   private readonly toolHost: MainToolsHost & ExecutorToolsHost
   private research: ResearchRuntime | undefined
+  private machinePort?: MachinePort
+  private machineTimer?: ReturnType<typeof setInterval>
   /** Non-zero while a main-Session tool is executing an Engine command, suppressing self-triggered domain event notices. */
   private quiet = 0
   constructor(ctx: Context, readonly machine: Machine, restart: () => void) {
@@ -100,6 +103,7 @@ export class Runtime extends Service implements SourceHost {
       const report = (error: unknown) => { ctx.logger.warn('dsh-superagent: %s', String(error)) }
       const store = opened = this.store = new Store(join(machine.stateDir, 'orchestrator.sqlite'), report)
       this.research = openResearch(machine.stateDir)
+      this.machinePort = machinePortFromEnv()
       const setup = this.setup = new Setup({ context: ctx, machine, lifetime: this.lifetime, restart })
       const deployed = () => setup.configured()
         ? environmentOf({ deployment: setup.deployment, sources: this.sources, settings: store.settings() }) : undefined
@@ -125,7 +129,7 @@ export class Runtime extends Service implements SourceHost {
       const sessions = this.sessions = new Sessions({ context: ctx, store, prompts, effects, health: board.claim('models'), masterId,
         lifetime: this.lifetime,
         closing: () => this.closing(), environment,
-        tools: (agent, ticket) => ticket ? executorTools(this.toolHost, ticket) : mainTools(this.toolHost, agent).concat(researchTools(this.research!.repo)) })
+        tools: (agent, ticket) => ticket ? executorTools(this.toolHost, ticket) : mainTools(this.toolHost, agent).concat([researchTool({ repo: this.research!.repo, machine: this.machinePort })]) })
       const policyChanged: EngineForSettings['policyChanged'] = (from, to, effects) => { this.engine.policyChanged(from, to, effects) }
       this.settings = new Settings({ store, sources, engine: { policyChanged }, health: board, context: ctx, lifetime: this.lifetime, sessions,
         sourceHost: this, setup, requestPass: () => { this.passes.request() } })
@@ -219,6 +223,7 @@ export class Runtime extends Service implements SourceHost {
     this.executor.resume()
     this.passes.start()
     this.effects.start()
+    this.startMachineSupervision()
     this.runtimeHealth.set({ state: 'ready', detail: 'Orchestrator is ready', at: now() })
   }
   private httpHost(): HttpHost {
@@ -232,8 +237,20 @@ export class Runtime extends Service implements SourceHost {
   }
   /** Idempotent stop; concurrent or repeated calls share the same shutdown promise. */
   stop(): Promise<void> { return this.stopping ??= this.shutdown() }
+  /** One supervision round a minute while a machine is configured; a failed round is logged, never raised, so the tick survives. */
+  private startMachineSupervision(): void {
+    const port = this.machinePort
+    const research = this.research
+    if (!port || !research) return
+    this.machineTimer = setInterval(() => {
+      machineTick({ repo: research.repo, port, now: new Date().toISOString(), idleMs: 3_600_000 })
+        .catch((error: unknown) => { this.ctx.logger.warn('machine supervision failed: %s', String(error)) })
+    }, 60_000)
+  }
+
   private async shutdown(): Promise<void> {
     this.closingFlag = true; const passes = this.passes.stop(); this.stopped.abort()
+    if (this.machineTimer) clearInterval(this.machineTimer)
     try {
       this.assessor.stop()
       const ids = [this.masterId, ...this.store.tickets.list().map(ticket => workerSessionId(ticket.id))]

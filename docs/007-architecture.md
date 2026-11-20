@@ -310,7 +310,14 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/research/draft.ts` | `draftContract`: a signed-ready contract from a picked candidate, with the person's requirement kept apart from the candidate's own criteria |
 | `src/research/sign.ts` | `sign` and its `ContractSink` port: freeze once, record the human decision, refuse a second signature |
 | `src/app/research-runtime.ts` | `openResearch`: the research database in its own file, created on start and closed on shutdown |
-| `src/app/tools/research.ts` | The main Session's five research tools: propose, critique, pick, sign and status |
+| `src/app/tools/research.ts` | The main Session's one research tool, a discriminated union over propose, critique, pick, sign, protocol, attempt, run, machine and status |
+| `src/research/protocol.ts` | The pre-registered protocol: `Protocol`, `Measurement`, and `validateProtocol`, which refuses a criterion with no measurement |
+| `src/research/attempt.ts` | The attempt lifecycle: `openAttempt`, `startAttempt`, `waitAttempt`, `conclude`; an attempt that never ran cannot conclude |
+| `src/research/ledger.ts` | Rates, `runCost`, `assertNoOverlap` and `attemptCost`: two runs that overlap on one machine are refused |
+| `src/research/machine.ts` | `MachineStatus`, `Activity` and `shouldPowerOff`: the idle rule, with the boot as the fallback start of an idle window |
+| `src/app/machine-port.ts` | `MachinePort` and `httpMachinePort`: configured endpoints, a timeout signal, and a token that never reaches an error message |
+| `src/app/machine-supervisor.ts` | `supervise`: one round of read-decide-stop, recording the power-off only after it succeeded |
+| `src/app/research-runtime.ts` | `openResearch`, `machinePortFromEnv`, `activityOf` and `machineTick`: the research database and the minute-by-minute supervision |
 | `src/core/model.ts` | The domain types, among them the typed Ticket and `MandateBasis`, with `threadKey`, `ticketOutcome`, `reached`, `followupOwners`, `settled`, `waitsForPerson`, `liveTicket`, `runningAssignment`, `latestAssignment` and `latestReport` |
 | `src/core/ports.ts` | The ports: `Repositories`, `Policy`, `SourceScope`, `Assessor`, `Executor`, `Outbox`, and the domain events |
 | `src/core/engine.ts` | The Engine, the core's entry point, and the role interfaces `EngineForSources`, `EngineForMainSession`, `EngineForPeople`, `EngineForSettings` and `EngineForExecutor` |
@@ -448,6 +455,15 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/research-batch-store.spec.ts` | Proposal batches through the research store |
 | `tests/research-loop.spec.ts` | The whole proposal loop through the five tools |
 | `tests/research-e2e.spec.ts` | One question from creation to a concluded attempt whose conclusion reached the agenda |
+| `tests/research-protocol.spec.ts` | The protocol validates every criterion and refuses a missing stop condition |
+| `tests/research-attempt.spec.ts` | The attempt lifecycle, including the attempt that never ran |
+| `tests/research-attempt-store.spec.ts` | Protocols, terminal attempts, unpriced runs, overlapping runs and the machine boot |
+| `tests/research-ledger.spec.ts` | Pricing a run and refusing an overlap on one machine |
+| `tests/research-machine.spec.ts` | The idle rule, including a machine booted and never used |
+| `tests/research-machine-port.spec.ts` | The HTTP adapter: headers, statuses, empty bodies, timeouts and a redacted token |
+| `tests/research-supervisor.spec.ts` | One supervision round in each machine state |
+| `tests/research-execution.spec.ts` | A signed contract through to a concluded, priced attempt |
+| `tests/research-execution-tool.spec.ts` | The same loop through the tool, and a conclusion whose evidence is not a run of that attempt |
 | `tests/delivery.spec.ts` | `AgentDelivery` |
 | `tests/retry-health.spec.ts`, `tests/role-models.spec.ts` | Model budget retries, and the models of the two roles |
 | `tests/runtime.spec.ts` | The whole application on a simulated DeepSeek Harness host, through tools and HTTP |
