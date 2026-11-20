@@ -303,6 +303,14 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/research/agenda.ts` | The agenda file: `parseAgenda` refuses a missing or unknown field with the entry's line, `renderEntry`, `agendaDigest` and `appendEntry` append against a stamped read, and `assertAgendaWriter` allows only the bookkeeper |
 | `src/research/guards.ts` | The invariants that need no I/O: `canDeleteBranch` refuses before the conclusion is in the agenda, and `canConclude` refuses a conclusion that cites no run |
 | `src/app/store-research.ts` | `createResearchSchema` and `ResearchRepo`: the research tables, questions, frozen contracts, attempts, runs with their cost, and decisions only a person may record |
+| `src/research/proposal.ts` | The proposal candidates and their batch: `Prior`, `Candidate`, `Critique`, `Batch`, and the validators that refuse a candidate with no delta or a hypothesis with no falsifier |
+| `src/research/batch.ts` | `saveBatch`, `critique`, `presentable` and `survivors`: a batch reaches a person only after every candidate is judged and one survives |
+| `src/research/profile.ts` | The taste profile file: `PROFILE_SECTIONS`, `parseProfile`, and `emptyProfile` |
+| `src/research/pick.ts` | `pick`: the person's choice, the critic's veto over a dropped candidate, and the rejections kept as taste signal |
+| `src/research/draft.ts` | `draftContract`: a signed-ready contract from a picked candidate, with the person's requirement kept apart from the candidate's own criteria |
+| `src/research/sign.ts` | `sign` and its `ContractSink` port: freeze once, record the human decision, refuse a second signature |
+| `src/app/research-runtime.ts` | `openResearch`: the research database in its own file, created on start and closed on shutdown |
+| `src/app/tools/research.ts` | The main Session's five research tools: propose, critique, pick, sign and status |
 | `src/core/model.ts` | The domain types, among them the typed Ticket and `MandateBasis`, with `threadKey`, `ticketOutcome`, `reached`, `followupOwners`, `settled`, `waitsForPerson`, `liveTicket`, `runningAssignment`, `latestAssignment` and `latestReport` |
 | `src/core/ports.ts` | The ports: `Repositories`, `Policy`, `SourceScope`, `Assessor`, `Executor`, `Outbox`, and the domain events |
 | `src/core/engine.ts` | The Engine, the core's entry point, and the role interfaces `EngineForSources`, `EngineForMainSession`, `EngineForPeople`, `EngineForSettings` and `EngineForExecutor` |
@@ -431,6 +439,14 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/research-agenda.spec.ts` | The agenda parser's refusals with their line numbers, CRLF tolerance, and the append that refuses a duplicate id or a stale read |
 | `tests/research-store.spec.ts` | The research repository: questions, frozen contracts that cannot be overwritten, attempt runs and their summed cost |
 | `tests/research-guards.spec.ts` | Human-only decisions, the branch guard and the run-cited conclusion |
+| `tests/research-proposal.spec.ts` | The candidate and batch validators |
+| `tests/research-batch.spec.ts` | Saving, critiquing and the presentable gate |
+| `tests/research-profile.spec.ts` | The profile file's three sections |
+| `tests/research-pick.spec.ts` | Picking, the critic veto and the rejected candidates |
+| `tests/research-contract-draft.spec.ts` | Drafting a contract from a candidate |
+| `tests/research-sign.spec.ts` | Freezing, the human decision, and the refused second signature |
+| `tests/research-batch-store.spec.ts` | Proposal batches through the research store |
+| `tests/research-loop.spec.ts` | The whole proposal loop through the five tools |
 | `tests/research-e2e.spec.ts` | One question from creation to a concluded attempt whose conclusion reached the agenda |
 | `tests/delivery.spec.ts` | `AgentDelivery` |
 | `tests/retry-health.spec.ts`, `tests/role-models.spec.ts` | Model budget retries, and the models of the two roles |
