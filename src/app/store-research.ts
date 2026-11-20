@@ -1,6 +1,6 @@
 /** Persistence for the research domain. Its own database, not the ticket store's schema. */
 import type { DatabaseSync } from 'node:sqlite'
-import type { Attempt, FrozenContract, Question, Run } from '../research/model.ts'
+import type { Attempt, Decision, FrozenContract, Question, Run } from '../research/model.ts'
 
 const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS questions (id TEXT PRIMARY KEY, statement TEXT NOT NULL, precision TEXT NOT NULL, prediction TEXT, test TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL)',
@@ -35,6 +35,17 @@ const toAttempt = (row: Record<string, unknown>): Attempt => ({
   ...(row.agenda_entry_id == null ? {} : { agendaEntryId: String(row.agenda_entry_id) }),
   status: row.status as Attempt['status'],
   ...(row.verdict == null ? {} : { verdict: row.verdict as Attempt['verdict'] }),
+})
+const DECISION_KINDS = ['sign_contract', 'kill_direction', 'accept_result'] as const
+
+const toDecision = (row: Record<string, unknown>): Decision => ({
+  id: String(row.id),
+  kind: row.kind as Decision['kind'],
+  targetId: String(row.target_id),
+  actor: 'human',
+  by: String(row.by),
+  at: String(row.at),
+  ...(row.note == null ? {} : { note: String(row.note) }),
 })
 
 /** Reads and writes the five research aggregates. */
@@ -112,5 +123,22 @@ export class ResearchRepo {
   costOfAttempt(id: string): number {
     const row = this.db.prepare('SELECT COALESCE(SUM(cost_yuan), 0) AS total FROM runs WHERE attempt_id = ?').get(id) as { total?: number } | undefined
     return row?.total ?? 0
+  }
+
+  /** Records a judgement. Only a person can make one: an agent may propose, never write. */
+  recordDecision(decision: Decision): void {
+    if (decision.actor !== 'human') throw new Error('a decision can only be made by a human')
+    if (!(DECISION_KINDS as readonly string[]).includes(decision.kind)) {
+      throw new Error(`unknown decision kind ${String(decision.kind)}`)
+    }
+    this.db.prepare(
+      'INSERT INTO decisions (id, kind, target_id, actor, by, at, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).run(decision.id, decision.kind, decision.targetId, decision.actor, decision.by, decision.at, decision.note ?? null)
+  }
+
+  /** The judgements recorded against one target, oldest first. */
+  decisionsFor(targetId: string): Decision[] {
+    const rows = this.db.prepare('SELECT * FROM decisions WHERE target_id = ? ORDER BY at').all(targetId) as Record<string, unknown>[]
+    return rows.map(toDecision)
   }
 }
