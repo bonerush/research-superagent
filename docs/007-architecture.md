@@ -298,6 +298,11 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/limits.ts` | The limits of the values a person sets, which the settings schemas check and the panel's fields offer |
 | `src/kv.ts` | `KV`: every family of `kv` records with its key, its value's type and its owner, and the `Key` and `Family` types the Store and `SourceContext.state` take |
 | `src/navigation.ts` | Opens a DeepSeek Harness Session from the panel once the host's catalog lists it |
+| `src/research/model.ts` | The research domain types and their validators: `Question` and the precision axis, `Contract`, `Attempt`, `Run`, `Decision`, `validateQuestion`, `isTestable` and `assertIsoTimestamp`, which refuses a time without a zone |
+| `src/research/contract.ts` | The acceptance contract's canonical form and freeze: `canonicalContract`, `contractHash`, `freezeContract` and `verifyContract`, so a signed contract can be proved unchanged |
+| `src/research/agenda.ts` | The agenda file: `parseAgenda` refuses a missing or unknown field with the entry's line, `renderEntry`, `agendaDigest` and `appendEntry` append against a stamped read, and `assertAgendaWriter` allows only the bookkeeper |
+| `src/research/guards.ts` | The invariants that need no I/O: `canDeleteBranch` refuses before the conclusion is in the agenda, and `canConclude` refuses a conclusion that cites no run |
+| `src/app/store-research.ts` | `createResearchSchema` and `ResearchRepo`: the research tables, questions, frozen contracts, attempts, runs with their cost, and decisions only a person may record |
 | `src/core/model.ts` | The domain types, among them the typed Ticket and `MandateBasis`, with `threadKey`, `ticketOutcome`, `reached`, `followupOwners`, `settled`, `waitsForPerson`, `liveTicket`, `runningAssignment`, `latestAssignment` and `latestReport` |
 | `src/core/ports.ts` | The ports: `Repositories`, `Policy`, `SourceScope`, `Assessor`, `Executor`, `Outbox`, and the domain events |
 | `src/core/engine.ts` | The Engine, the core's entry point, and the role interfaces `EngineForSources`, `EngineForMainSession`, `EngineForPeople`, `EngineForSettings` and `EngineForExecutor` |
@@ -421,6 +426,12 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/queue.spec.ts` | The Runtime's work through the effect queue, and what earlier versions stored |
 | `tests/followups.spec.ts` | A person's follow-up on a Ticket's Thread: its notice to the main Session, the tools that act on it, what a burst costs; a worker's hand-back and context follow, and the main Session's note |
 | `tests/health.spec.ts` | One health entry per part, each cleared by its own next success |
+| `tests/research-model.spec.ts` | The research domain validators: a hypothesis needs a prediction and a test; a timestamp without a zone is refused |
+| `tests/research-contract.spec.ts` | The contract hash ignores key order, and a frozen contract stops verifying once edited |
+| `tests/research-agenda.spec.ts` | The agenda parser's refusals with their line numbers, CRLF tolerance, and the append that refuses a duplicate id or a stale read |
+| `tests/research-store.spec.ts` | The research repository: questions, frozen contracts that cannot be overwritten, attempt runs and their summed cost |
+| `tests/research-guards.spec.ts` | Human-only decisions, the branch guard and the run-cited conclusion |
+| `tests/research-e2e.spec.ts` | One question from creation to a concluded attempt whose conclusion reached the agenda |
 | `tests/delivery.spec.ts` | `AgentDelivery` |
 | `tests/retry-health.spec.ts`, `tests/role-models.spec.ts` | Model budget retries, and the models of the two roles |
 | `tests/runtime.spec.ts` | The whole application on a simulated DeepSeek Harness host, through tools and HTTP |
