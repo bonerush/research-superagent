@@ -301,3 +301,9 @@ it('runs a signed contract to a concluded attempt with its cost', async () => {
 **R4 — 账本按机器分组检测重叠。** 同一台机器上的两个 run 区间重叠拒绝（会重复计费，也说明记录有误）；不同机器允许重叠。
 
 **R5 — run 的价格在入库前由 `runCost` 算好写进 `costYuan`。** 存储只做归集，不持有费率表；费率属于部署配置，改价不该触发数据迁移。
+
+**R6 — 主会话字符预算 61,500 → 63,000。** 工具面序列化后 20,405（`research` 单工具 4,917），合计 62,599。执行动作必须挂在人能说话的那个会话上，否则闭环没有入口；拆成第二个工具不会更省，名称与描述反而增加。
+
+**R7 — `research` 增加 protocol、attempt、run、machine 四个动作。** `attempt` 的 open 从已登记协议派生；`conclude` 先核对每条证据都属于该尝试的 run，再下结论。
+
+**R8 — 机器由环境变量配置**（`RESEARCH_MACHINE_TOKEN`、`RESEARCH_MACHINE_INSTANCE` 与四个 `_URL`）。未配置时机器动作报错而不是假装可用；supervisor 每分钟一轮，失败只记日志不影响主循环。

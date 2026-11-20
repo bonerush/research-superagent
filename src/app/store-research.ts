@@ -230,9 +230,9 @@ export class ResearchRepo {
   saveProtocol(protocol: Protocol): void {
     if (this.getProtocol(protocol.attemptId)) throw new Error(`attempt ${protocol.attemptId} already has a protocol`)
     const attempt = this.getAttempt(protocol.attemptId)
-    if (!attempt) throw new Error(`unknown attempt ${protocol.attemptId}`)
-    const contract = this.getContract(attempt.contractVersion)
-    if (!contract) throw new Error(`attempt ${protocol.attemptId} has no signed contract`)
+    const version = attempt ? attempt.contractVersion : protocol.contractVersion
+    const contract = this.getContract(version)
+    if (!contract) throw new Error(`no signed contract ${version} for attempt ${protocol.attemptId}`)
     validateProtocol(protocol, contract)
     this.db.prepare('INSERT INTO protocols (attempt_id, json) VALUES (?, ?)').run(protocol.attemptId, JSON.stringify(protocol))
   }

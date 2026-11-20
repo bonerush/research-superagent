@@ -30,7 +30,7 @@ const reviewed = async (tool: Tool) => {
 describe('the proposal loop through one tool', () => {
   it('runs a direction to a signed contract drawn from the picked candidate', async () => {
     const store = repo()
-    const tool = researchTool(store)
+    const tool = researchTool({ repo: store })
     await reviewed(tool)
     await run(tool, { action: 'pick', batchId: 'B-1', candidateId: 'P-1-1', by: 'me' })
     const signed = await run(tool, { action: 'sign', batchId: 'B-1', candidateId: 'P-1-1', requirement: '架构上的新机制', version: 1, by: 'me' }) as { hash: string }
@@ -47,7 +47,7 @@ describe('the proposal loop through one tool', () => {
 
   it('refuses a resubmitted batch id instead of overwriting its critiques', async () => {
     const store = repo()
-    const tool = researchTool(store)
+    const tool = researchTool({ repo: store })
     await reviewed(tool)
     await expect(run(tool, { action: 'propose', id: 'B-1', direction: 'd', candidates: [candidate(1), candidate(2)] })).rejects.toThrow(/UNIQUE|constraint/)
     expect(store.getProposalBatch('B-1')?.critiques).toHaveLength(2)
@@ -55,7 +55,7 @@ describe('the proposal loop through one tool', () => {
 
   it('refuses a second pick on the same batch', async () => {
     const store = repo()
-    const tool = researchTool(store)
+    const tool = researchTool({ repo: store })
     await run(tool, { action: 'propose', id: 'B-1', direction: 'd', candidates: [candidate(1), candidate(2), candidate(3)] })
     await run(tool, { action: 'critique', batchId: 'B-1', reviews: [
       { candidateId: 'P-1-1', verdict: 'keep', reason: 'ok' },
@@ -68,7 +68,7 @@ describe('the proposal loop through one tool', () => {
 
   it('refuses to sign a candidate the batch did not pick', async () => {
     const store = repo()
-    const tool = researchTool(store)
+    const tool = researchTool({ repo: store })
     await reviewed(tool)
     await run(tool, { action: 'pick', batchId: 'B-1', candidateId: 'P-1-1', by: 'me' })
     await expect(run(tool, { action: 'sign', batchId: 'B-1', candidateId: 'P-1-2', requirement: 'r', version: 1, by: 'me' })).rejects.toThrow(/picked/)
@@ -76,7 +76,7 @@ describe('the proposal loop through one tool', () => {
 
   it('refuses a candidate the critic dropped', async () => {
     const store = repo()
-    const tool = researchTool(store)
+    const tool = researchTool({ repo: store })
     await reviewed(tool)
     await expect(run(tool, { action: 'pick', batchId: 'B-1', candidateId: 'P-1-2', by: 'me' })).rejects.toThrow(/critic/)
   })
