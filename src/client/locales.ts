@@ -116,6 +116,11 @@ const TEXT = {
   'tab.trigger': ['触发', 'Trigger'],
   'tab.eval': ['评估', 'Eval'],
   'tab.execution': ['执行', 'Execution'],
+  'tab.research': ['研究', 'Research'],
+  'researchBatches': ['待挑提案', 'Proposals to pick'],
+  'researchAttempts': ['待判定尝试', 'Attempts to judge'],
+  'researchReports': ['报告', 'Reports'],
+  'researchNone': ['暂无。', 'Nothing here.'],
   // Overview
   sourceError: ['{source} 来源异常', '{source} Source failing'],
   needsYouNone: ['没有待处理的工单。', 'No pending Tickets.'],
