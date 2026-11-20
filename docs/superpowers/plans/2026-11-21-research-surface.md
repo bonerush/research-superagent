@@ -44,7 +44,7 @@
 **Interfaces:**
 - Produces: ResearchOverview { batches: { id; direction; candidates }[]; attempts: { id; verdict; costYuan }[]; reports: { attemptId; title }[] }、researchOverview(repo: ResearchRepo): ResearchOverview
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 ~~~ts
 it('lists a reviewed batch that was never picked', () => {
   const view = researchOverview(repo)
@@ -60,11 +60,11 @@ it('leaves out an attempt that was accepted', () => {
   expect(researchOverview(acceptedRepo).attempts).toEqual([])
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-view.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-view.spec.ts
+- [x] **Step 3: 实现**
 batches：状态为 reviewed 的批次。attempts：状态为 concluded、且 decisionsFor(attempt) 里没有 accept_result 也没有 kill_direction 的。reports：有报告的 attempt，标题取报告第一行。花费取 costOfAttempt。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): show what needs a person"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): show what needs a person"
 
 ### Task 2: 面板路由
 
@@ -74,11 +74,11 @@ batches：状态为 reviewed 的批次。attempts：状态为 concluded、且 de
 **Interfaces:**
 - Produces: Api 的 GET research → ResearchOverview；HttpHost 增加 research 字段
 
-- [ ] **Step 1: 写失败测试** — 用一个假的 host 调路由处理函数，断言 200 与字段。
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-view.spec.ts -t route
-- [ ] **Step 3: 实现** — 在 `Api` 里加一行；在 `http.ts` 的路由表里加 `GET research`；`HttpHost` 加 `research: ResearchRepo`，Runtime 传进去。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): expose the research overview to the panel"
+- [x] **Step 1: 写失败测试** — 用一个假的 host 调路由处理函数，断言 200 与字段。
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-view.spec.ts -t route
+- [x] **Step 3: 实现** — 在 `Api` 里加一行；在 `http.ts` 的路由表里加 `GET research`；`HttpHost` 加 `research: ResearchRepo`，Runtime 传进去。
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): expose the research overview to the panel"
 
 ### Task 3: 研究页签
 
@@ -87,19 +87,19 @@ batches：状态为 reviewed 的批次。attempts：状态为 concluded、且 de
 - Modify: src/client/route.ts、src/client/app.tsx
 - Test: tests/research-view.spec.ts（视图数据已测，客户端只做渲染）
 
-- [ ] **Step 1:** 在 TABS 里加 `research`，路由类型加 `{ page: "research" }`。
-- [ ] **Step 2:** 页面列四块：待签契约（空时写「没有」）、待挑提案、待判定尝试、报告。每条只显示 id、状态、花费。
-- [ ] **Step 3:** 跑 `pnpm typecheck` 与 `pnpm build`，确认客户端能编译。
-- [ ] **Step 4:** 提交 — git commit -m "feat(panel): add the research tab"
+- [x] **Step 1:** 在 TABS 里加 `research`，路由类型加 `{ page: "research" }`。
+- [x] **Step 2:** 页面列四块：待签契约（空时写「没有」）、待挑提案、待判定尝试、报告。每条只显示 id、状态、花费。
+- [x] **Step 3:** 跑 `pnpm typecheck` 与 `pnpm build`，确认客户端能编译。
+- [x] **Step 4:** 提交 — git commit -m "feat(panel): add the research tab"
 
 ### Task 4: 文档
 
 **Files:**
 - Create: docs/009-research.md
 - Modify: docs/007-architecture.md
-- [ ] **Step 1:** 写 009：研究域的概念（Agenda/Proposal/Contract/Attempt/Run/Evidence/Report）、三个点头点、机器与预算、目录与文件。
-- [ ] **Step 2:** 007 的模块表补 `src/app/views/research.ts` 与 `src/client/research.tsx`，测试表补 `tests/research-view.spec.ts`。
-- [ ] **Step 3:** 提交 — git commit -m "docs: describe the research domain and its panel"
+- [x] **Step 1:** 写 009：研究域的概念（Agenda/Proposal/Contract/Attempt/Run/Evidence/Report）、三个点头点、机器与预算、目录与文件。
+- [x] **Step 2:** 007 的模块表补 `src/app/views/research.ts` 与 `src/client/research.tsx`，测试表补 `tests/research-view.spec.ts`。
+- [x] **Step 3:** 提交 — git commit -m "docs: describe the research domain and its panel"
 
 ## 清理的边界（本计划只做一半，另一半记 Ruling）
 设计要求的终点是删掉 Ticket 域与 GitHub 监听。本计划**不删**，理由：飞书通知与面板外壳仍骑在旧域上，删掉会先打断通知面；而且删旧域要同时重写 001–008 与大量测试，无法在本计划里高质量完成。

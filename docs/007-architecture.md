@@ -476,6 +476,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/research-decide.spec.ts` | Accepting needs a supported, reproduced, concluded attempt; a kill needs a reason |
 | `tests/research-convergence.spec.ts` | The whole convergence loop through the tool, including the refused acceptance |
 | `tests/research-view.spec.ts` | The overview leaves out picked batches and accepted attempts, and keeps the rest |
+| `tests/panel-research.spec.tsx` | The research tab renders its four sections, each empty when nothing waits |
 | `tests/delivery.spec.ts` | `AgentDelivery` |
 | `tests/retry-health.spec.ts`, `tests/role-models.spec.ts` | Model budget retries, and the models of the two roles |
 | `tests/runtime.spec.ts` | The whole application on a simulated DeepSeek Harness host, through tools and HTTP |
