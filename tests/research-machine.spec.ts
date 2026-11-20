@@ -24,4 +24,7 @@ describe('shouldPowerOff', () => {
   it('keeps a machine with nothing recorded, as if just booted', () => {
     expect(shouldPowerOff({ jobRunning: false }, LATER, HOUR)).toBe(false)
   })
+  it('stops a machine booted long ago and never used', () => {
+    expect(shouldPowerOff({ jobRunning: false, bootedAt: AT }, LATER, HOUR)).toBe(true)
+  })
 })

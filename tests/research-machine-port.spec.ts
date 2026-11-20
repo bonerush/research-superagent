@@ -32,4 +32,20 @@ describe('httpMachinePort', () => {
     const port = httpMachinePort({ endpoints, token: 't', instanceId: 'i', fetch: async () => json({ error: 'denied' }, 403) })
     await expect(port.powerOn()).rejects.toThrow(/403/)
   })
+  it('accepts a power call that answers with no body', async () => {
+    const port = httpMachinePort({ endpoints, token: 't', instanceId: 'i', fetch: async () => new Response(null, { status: 204 }) })
+    await expect(port.powerOn()).resolves.toBeUndefined()
+  })
+  it('keeps the token out of an error message', async () => {
+    const port = httpMachinePort({ endpoints, token: 'secret', instanceId: 'i', fetch: async () => json({ echo: 'bearer secret' }, 401) })
+    await expect(port.powerOn()).rejects.toThrow(/401/)
+    const message = await port.powerOn().catch(error => String(error))
+    expect(message).not.toContain('secret')
+  })
+  it('bounds the call with a timeout signal', async () => {
+    let seen: RequestInit | undefined
+    const port = httpMachinePort({ endpoints, token: 't', instanceId: 'i', fetch: async (_url, init) => { seen = init; return json({ status: 'idle' }) } })
+    await port.status()
+    expect(seen?.signal).toBeInstanceOf(AbortSignal)
+  })
 })

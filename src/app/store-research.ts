@@ -1,9 +1,10 @@
 /** Persistence for the research domain. Its own database, not the ticket store's schema. */
 import type { DatabaseSync } from 'node:sqlite'
 import { verifyContract } from '../research/contract.ts'
+import { assertNoOverlap } from '../research/ledger.ts'
 import { assertIsoTimestamp, validateQuestion, type Attempt, type Decision, type FrozenContract, type Question, type Run } from '../research/model.ts'
 import type { Batch } from '../research/proposal.ts'
-import type { Protocol } from '../research/protocol.ts'
+import { validateProtocol, type Protocol } from '../research/protocol.ts'
 
 const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS questions (id TEXT PRIMARY KEY, statement TEXT NOT NULL, precision TEXT NOT NULL, prediction TEXT, test TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL)',
@@ -13,6 +14,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, kind TEXT NOT NULL, target_id TEXT NOT NULL, actor TEXT NOT NULL, by TEXT NOT NULL, at TEXT NOT NULL, note TEXT)',
   'CREATE TABLE IF NOT EXISTS batches (id TEXT PRIMARY KEY, json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL)',
   'CREATE TABLE IF NOT EXISTS protocols (attempt_id TEXT PRIMARY KEY, json TEXT NOT NULL)',
+  'CREATE TABLE IF NOT EXISTS machine (id TEXT PRIMARY KEY, booted_at TEXT, off_at TEXT)',
 ]
 
 /** Creates the research tables in an open database. Idempotent: safe on every start. */
@@ -21,25 +23,32 @@ export function createResearchSchema(db: DatabaseSync): void {
 }
 
 const toQuestion = (row: Record<string, unknown>): Question => ({
-  id: String(row.id),
-  statement: String(row.statement),
+  id: String(row.id), statement: String(row.statement),
   precision: row.precision as Question['precision'],
   ...(row.prediction == null ? {} : { prediction: String(row.prediction) }),
   ...(row.test == null ? {} : { test: String(row.test) }),
-  status: row.status as Question['status'],
-  createdAt: String(row.created_at),
+  status: row.status as Question['status'], createdAt: String(row.created_at),
 })
 
 const toAttempt = (row: Record<string, unknown>): Attempt => ({
-  id: String(row.id),
-  slug: String(row.slug),
-  questionId: String(row.question_id),
-  contractVersion: Number(row.contract_version),
-  branch: String(row.branch),
+  id: String(row.id), slug: String(row.slug), questionId: String(row.question_id),
+  contractVersion: Number(row.contract_version), branch: String(row.branch),
   protocolPath: String(row.protocol_path),
   ...(row.agenda_entry_id == null ? {} : { agendaEntryId: String(row.agenda_entry_id) }),
   status: row.status as Attempt['status'],
   ...(row.verdict == null ? {} : { verdict: row.verdict as Attempt['verdict'] }),
+})
+
+const toRun = (row: Record<string, unknown>): Run => ({
+  id: String(row.id), attemptId: String(row.attempt_id),
+  kind: row.kind as Run['kind'], machine: String(row.machine), image: String(row.image),
+  commit: String(row.git_commit), command: String(row.command),
+  params: JSON.parse(String(row.params)) as Record<string, string>,
+  startedAt: String(row.started_at),
+  ...(row.ended_at == null ? {} : { endedAt: String(row.ended_at) }),
+  ...(row.cost_cents == null ? {} : { costYuan: Number(row.cost_cents) / 100 }),
+  ...(row.log_path == null ? {} : { logPath: String(row.log_path) }),
+  artifacts: JSON.parse(String(row.artifacts)) as string[],
 })
 
 const DECISION_KINDS = ['sign_contract', 'pick_proposal', 'kill_direction', 'accept_result'] as const
@@ -49,8 +58,7 @@ const toDecision = (row: Record<string, unknown>): Decision => ({
   kind: row.kind as Decision['kind'],
   targetId: String(row.target_id),
   actor: 'human',
-  by: String(row.by),
-  at: String(row.at),
+  by: String(row.by), at: String(row.at),
   ...(row.note == null ? {} : { note: String(row.note) }),
 })
 
@@ -66,10 +74,8 @@ export class ResearchRepo {
     validateQuestion(question)
     this.db.prepare(
       'INSERT OR REPLACE INTO questions (id, statement, precision, prediction, test, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    ).run(
-      question.id, question.statement, question.precision,
-      question.prediction ?? null, question.test ?? null, question.status, assertIsoTimestamp(question.createdAt),
-    )
+    ).run(question.id, question.statement, question.precision, question.prediction ?? null, question.test ?? null,
+      question.status, assertIsoTimestamp(question.createdAt))
   }
 
   /** One question, or undefined when the id is unknown. */
@@ -78,10 +84,7 @@ export class ResearchRepo {
     return row ? toQuestion(row) : undefined
   }
 
-  /**
-   * Stores a frozen contract under its version.
-   * An identical save is a no-op; a different body under a taken version throws, because that is the version a person signed.
-   */
+  /** Stores a frozen contract under its version; an identical save is a no-op and a different body throws. */
   saveContract(contract: FrozenContract): void {
     const existing = this.getContract(contract.version)
     if (existing) {
@@ -90,10 +93,7 @@ export class ResearchRepo {
     }
     this.db.prepare(
       'INSERT INTO contracts (version, json, hash, signed_by, signed_at) VALUES (?, ?, ?, ?, ?)',
-    ).run(
-      contract.version, JSON.stringify(contract), contract.hash,
-      contract.signedBy, assertIsoTimestamp(contract.signedAt ?? ''),
-    )
+    ).run(contract.version, JSON.stringify(contract), contract.hash, contract.signedBy, assertIsoTimestamp(contract.signedAt ?? ''))
   }
 
   /** One frozen contract, or undefined when the version is unknown. A stored contract that no longer verifies is refused. */
@@ -105,14 +105,16 @@ export class ResearchRepo {
     return stored
   }
 
-  /** Inserts or updates one attempt, keyed by its id. */
+  /** Inserts or updates one attempt. A concluded or abandoned attempt is final and refuses any later write. */
   saveAttempt(attempt: Attempt): void {
+    const existing = this.getAttempt(attempt.id)
+    if (existing && (existing.status === 'concluded' || existing.status === 'abandoned')) {
+      throw new Error(`attempt ${attempt.id} is ${existing.status} and cannot change`)
+    }
     this.db.prepare(
       'INSERT OR REPLACE INTO attempts (id, slug, question_id, contract_version, branch, protocol_path, agenda_entry_id, status, verdict) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    ).run(
-      attempt.id, attempt.slug, attempt.questionId, attempt.contractVersion, attempt.branch,
-      attempt.protocolPath, attempt.agendaEntryId ?? null, attempt.status, attempt.verdict ?? null,
-    )
+    ).run(attempt.id, attempt.slug, attempt.questionId, attempt.contractVersion, attempt.branch,
+      attempt.protocolPath, attempt.agendaEntryId ?? null, attempt.status, attempt.verdict ?? null)
   }
 
   /** One attempt, or undefined when the id is unknown. */
@@ -121,22 +123,46 @@ export class ResearchRepo {
     return row ? toAttempt(row) : undefined
   }
 
-  /** Records one boot. It never touches the attempt row, so a verification run after a verdict keeps the verdict. */
-  addRun(run: Run): void {
-    this.db.prepare(
-      'INSERT INTO runs (id, attempt_id, kind, machine, image, git_commit, command, params, started_at, ended_at, cost_cents, log_path, artifacts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    ).run(
-      run.id, run.attemptId, run.kind, run.machine, run.image, run.commit, run.command,
-      JSON.stringify(run.params), assertIsoTimestamp(run.startedAt),
-      run.endedAt == null ? null : assertIsoTimestamp(run.endedAt), toCents(run.costYuan),
-      run.logPath ?? null, JSON.stringify(run.artifacts),
-    )
+  /** Every attempt, newest contract version first, optionally only those in one status. */
+  listAttempts(status?: Attempt['status']): Attempt[] {
+    const rows = (status
+      ? this.db.prepare('SELECT * FROM attempts WHERE status = ? ORDER BY contract_version DESC').all(status)
+      : this.db.prepare('SELECT * FROM attempts ORDER BY contract_version DESC').all()) as Record<string, unknown>[]
+    return rows.map(row => toAttempt(row))
   }
 
-  /** Money spent by one attempt across all its runs, in yuan. */
+  /** Records one boot. A finished run must carry its cost: an unpriced boot would quietly count as free. */
+  addRun(run: Run): void {
+    if (run.endedAt != null && run.costYuan == null) throw new Error(`run ${run.id} ended without a cost`)
+    this.db.prepare(
+      'INSERT INTO runs (id, attempt_id, kind, machine, image, git_commit, command, params, started_at, ended_at, cost_cents, log_path, artifacts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(run.id, run.attemptId, run.kind, run.machine, run.image, run.commit, run.command,
+      JSON.stringify(run.params), assertIsoTimestamp(run.startedAt),
+      run.endedAt == null ? null : assertIsoTimestamp(run.endedAt), toCents(run.costYuan),
+      run.logPath ?? null, JSON.stringify(run.artifacts))
+  }
+
+  /** One run, or undefined when the id is unknown. */
+  getRun(id: string): Run | undefined {
+    const row = this.db.prepare('SELECT * FROM runs WHERE id = ?').get(id) as Record<string, unknown> | undefined
+    return row ? toRun(row) : undefined
+  }
+
+  /** Every run of one attempt, oldest first. */
+  runsOf(attemptId: string): Run[] {
+    const rows = this.db.prepare('SELECT * FROM runs WHERE attempt_id = ? ORDER BY started_at').all(attemptId) as Record<string, unknown>[]
+    return rows.map(row => toRun(row))
+  }
+
+  /** Money spent by one attempt, after refusing runs that overlap on one machine. */
   costOfAttempt(id: string): number {
-    const row = this.db.prepare('SELECT COALESCE(SUM(cost_cents), 0) AS total FROM runs WHERE attempt_id = ?').get(id) as { total?: number } | undefined
-    return (row?.total ?? 0) / 100
+    const rows = this.db.prepare(
+      'SELECT * FROM runs WHERE attempt_id = ? ORDER BY started_at',
+    ).all(id) as Record<string, unknown>[]
+    const runs = rows.map(row => toRun(row))
+    assertNoOverlap(runs)
+    const cents = rows.reduce((total, row) => total + Number(row.cost_cents ?? 0), 0)
+    return cents / 100
   }
 
   /** Records a judgement. Only a person can make one: an agent may propose, never write. */
@@ -147,13 +173,10 @@ export class ResearchRepo {
     }
     this.db.prepare(
       'INSERT INTO decisions (id, kind, target_id, actor, by, at, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    ).run(
-      decision.id, decision.kind, decision.targetId, decision.actor, decision.by,
-      assertIsoTimestamp(decision.at), decision.note ?? null,
-    )
+    ).run(decision.id, decision.kind, decision.targetId, decision.actor, decision.by,
+      assertIsoTimestamp(decision.at), decision.note ?? null)
   }
 
-  /** The judgements recorded against one target, oldest first by normalized time. */
   /** Writes the frozen contract and its decision in one transaction: neither lands without the other. */
   signContract(frozen: FrozenContract, decision: Decision): void {
     this.db.exec('BEGIN')
@@ -167,6 +190,7 @@ export class ResearchRepo {
     }
   }
 
+  /** The judgements recorded against one target, oldest first by normalized time. */
   decisionsFor(targetId: string): Decision[] {
     const rows = this.db.prepare('SELECT * FROM decisions WHERE target_id = ? ORDER BY at').all(targetId) as Record<string, unknown>[]
     return rows.map(toDecision)
@@ -174,16 +198,14 @@ export class ResearchRepo {
 
   /** Updates a stored batch: the candidates, the critiques and the rejections travel together. */
   saveProposalBatch(batch: Batch): void {
-    this.db.prepare(
-      'INSERT OR REPLACE INTO batches (id, json, status, created_at) VALUES (?, ?, ?, ?)',
-    ).run(batch.id, JSON.stringify(batch), batch.status, assertIsoTimestamp(batch.createdAt))
+    this.db.prepare('INSERT OR REPLACE INTO batches (id, json, status, created_at) VALUES (?, ?, ?, ?)')
+      .run(batch.id, JSON.stringify(batch), batch.status, assertIsoTimestamp(batch.createdAt))
   }
 
   /** Inserts a new batch. A resubmitted id is refused here, not overwritten: the earlier critiques are the record. */
   createProposalBatch(batch: Batch): void {
-    this.db.prepare(
-      'INSERT INTO batches (id, json, status, created_at) VALUES (?, ?, ?, ?)',
-    ).run(batch.id, JSON.stringify(batch), batch.status, assertIsoTimestamp(batch.createdAt))
+    this.db.prepare('INSERT INTO batches (id, json, status, created_at) VALUES (?, ?, ?, ?)')
+      .run(batch.id, JSON.stringify(batch), batch.status, assertIsoTimestamp(batch.createdAt))
   }
 
   /** One batch, or undefined when the id is unknown. */
@@ -200,9 +222,19 @@ export class ResearchRepo {
     return rows.map(row => JSON.parse(row.json) as Batch)
   }
 
-  /** Stores the protocol an attempt runs under, keyed by the attempt. */
+  /**
+   * Registers the protocol an attempt runs under.
+   * The attempt and its signed contract must exist, the protocol must be valid for that contract, and a second
+   * registration is refused: the protocol is the frozen baseline the verdict is judged against.
+   */
   saveProtocol(protocol: Protocol): void {
-    this.db.prepare('INSERT OR REPLACE INTO protocols (attempt_id, json) VALUES (?, ?)').run(protocol.attemptId, JSON.stringify(protocol))
+    if (this.getProtocol(protocol.attemptId)) throw new Error(`attempt ${protocol.attemptId} already has a protocol`)
+    const attempt = this.getAttempt(protocol.attemptId)
+    if (!attempt) throw new Error(`unknown attempt ${protocol.attemptId}`)
+    const contract = this.getContract(attempt.contractVersion)
+    if (!contract) throw new Error(`attempt ${protocol.attemptId} has no signed contract`)
+    validateProtocol(protocol, contract)
+    this.db.prepare('INSERT INTO protocols (attempt_id, json) VALUES (?, ?)').run(protocol.attemptId, JSON.stringify(protocol))
   }
 
   /** The protocol of one attempt, or undefined when it has none. */
@@ -211,11 +243,19 @@ export class ResearchRepo {
     return row?.json ? (JSON.parse(row.json) as Protocol) : undefined
   }
 
-  /** Every attempt, newest contract version first, optionally only those in one status. */
-  listAttempts(status?: Attempt['status']): Attempt[] {
-    const rows = (status
-      ? this.db.prepare('SELECT * FROM attempts WHERE status = ? ORDER BY contract_version DESC').all(status)
-      : this.db.prepare('SELECT * FROM attempts ORDER BY contract_version DESC').all()) as Record<string, unknown>[]
-    return rows.map(row => toAttempt(row))
+  /** When the machine was switched on, and when it was last switched off. */
+  machine(): { bootedAt?: string; offAt?: string } {
+    const row = this.db.prepare("SELECT * FROM machine WHERE id = 'self'").get() as { booted_at?: string | null; off_at?: string | null } | undefined
+    return { ...(row?.booted_at ? { bootedAt: row.booted_at } : {}), ...(row?.off_at ? { offAt: row.off_at } : {}) }
+  }
+
+  /** Records a switch-on, keeping the last switch-off for the record. */
+  setMachineBootedAt(at: string): void {
+    this.db.prepare("INSERT OR REPLACE INTO machine (id, booted_at, off_at) VALUES ('self', ?, (SELECT off_at FROM machine WHERE id = 'self'))").run(assertIsoTimestamp(at))
+  }
+
+  /** Records a switch-off and clears the boot, so the next idle window starts from a real boot. */
+  clearMachineBootedAt(at: string): void {
+    this.db.prepare("INSERT OR REPLACE INTO machine (id, booted_at, off_at) VALUES ('self', NULL, ?)").run(assertIsoTimestamp(at))
   }
 }

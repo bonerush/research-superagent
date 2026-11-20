@@ -14,19 +14,11 @@ const minutes = (start: string, end: string): number => {
   return (to - from) / 60_000
 }
 
-/** The money one boot cost: its minutes at the machine rate. */
-export function runCost(run: Run, rates: Rates): number {
-  if (!run.endedAt) throw new Error(`run ${run.id} never ended, so its cost is unknown`)
-  const rate = rates[run.machine]
-  if (rate === undefined) throw new Error(`no rate for machine ${run.machine}`)
-  return (minutes(run.startedAt, run.endedAt) / 60) * rate
-}
-
 /**
- * The money an attempt cost: every run summed, after refusing two runs that overlap on one machine.
+ * Refuses two runs that overlap on one machine.
  * An overlap would be charged twice and would also mean the record of what ran when is wrong.
  */
-export function attemptCost(runs: Run[], rates: Rates): number {
+export function assertNoOverlap(runs: Run[]): void {
   const byMachine = new Map<string, Run[]>()
   for (const run of runs) {
     const list = byMachine.get(run.machine) ?? []
@@ -42,5 +34,18 @@ export function attemptCost(runs: Run[], rates: Rates): number {
       if (Date.parse(current.startedAt) < previousEnd) throw new Error(`runs overlap on ${machine}`)
     }
   }
+}
+
+/** The money one boot cost: its minutes at the machine rate. */
+export function runCost(run: Run, rates: Rates): number {
+  if (!run.endedAt) throw new Error(`run ${run.id} never ended, so its cost is unknown`)
+  const rate = rates[run.machine]
+  if (rate === undefined) throw new Error(`no rate for machine ${run.machine}`)
+  return (minutes(run.startedAt, run.endedAt) / 60) * rate
+}
+
+/** The runs priced at the current rates, after refusing an overlap. */
+export function attemptCost(runs: Run[], rates: Rates): number {
+  assertNoOverlap(runs)
   return runs.reduce((total, run) => total + runCost(run, rates), 0)
 }

@@ -49,4 +49,7 @@ describe('conclude', () => {
     const done = conclude(startAttempt(opened()), 'supported', ['RUN-1'])
     expect(() => conclude(done, 'refuted', ['RUN-2'])).toThrow(/concluded/)
   })
+  it('refuses to conclude an attempt that never started', () => {
+    expect(() => conclude(opened(), 'supported', ['RUN-1'])).toThrow(/never ran/)
+  })
 })

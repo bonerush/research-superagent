@@ -24,7 +24,7 @@ const CandidateSchema = z.object({
 })
 const ReviewSchema = z.object({ candidateId: z.string().min(1), verdict: z.enum(['keep', 'drop']), reason: z.string().min(1) })
 
-const Action = z.union([
+const Action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('propose'), id: z.string().min(1), direction: z.string().min(1), candidates: z.array(CandidateSchema).min(2).max(5) }),
   z.object({ action: z.literal('critique'), batchId: z.string().min(1), reviews: z.array(ReviewSchema).min(1) }),
   z.object({ action: z.literal('pick'), batchId: z.string().min(1), candidateId: z.string().min(1), by: z.string().min(1) }),

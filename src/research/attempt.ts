@@ -38,11 +38,13 @@ export function waitAttempt(attempt: Attempt): Attempt {
 
 /**
  * Concludes an attempt with a verdict and the runs that prove it.
- * A conclusion without a run is refused here: the ledger must not carry a claim the machine never made.
+ * Only a running or waiting attempt can conclude: an attempt that never started has nothing to conclude from.
+ * A conclusion with no run is refused too, because the ledger must not carry a claim the machine never made.
  */
 export function conclude(attempt: Attempt, verdict: Verdict, evidence: string[]): Attempt {
   if (attempt.status === 'concluded') throw new Error(`attempt ${attempt.id} is already concluded`)
   if (attempt.status === 'abandoned') throw new Error(`attempt ${attempt.id} was abandoned`)
+  if (attempt.status !== 'running' && attempt.status !== 'waiting') throw new Error(`attempt ${attempt.id} never ran: it is ${attempt.status}`)
   if (!canConclude(evidence)) throw new Error(`attempt ${attempt.id} cites no run: a conclusion needs evidence`)
   return { ...attempt, status: 'concluded', verdict }
 }
