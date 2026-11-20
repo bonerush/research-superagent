@@ -58,7 +58,7 @@
 **Interfaces:**
 - Produces: Prior、Candidate、Critique、Batch、BatchStatus；validateCandidate(c: Candidate): void；validateBatch(b: Batch): void
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 ~~~ts
 const cand = (over: Partial<Candidate> = {}): Candidate => ({
   id: 'P-1-1', question: 'q', precision: 'topic', why: 'w',
@@ -76,13 +76,13 @@ it('rejects a hypothesis without a falsifier', () => {
   expect(() => validateCandidate(cand({ precision: 'hypothesis' }))).toThrow(/prediction/)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-proposal.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-proposal.spec.ts
+- [x] **Step 3: 实现**
 类型：Prior { work; delta }、Candidate { id; question; precision; prediction?; test?; why; priors: Prior[]; feasibility { data; hardware; days; yuan }; protocolDraft; risk }、Critique { candidateId; verdict: keep|drop; reason }、BatchStatus = draft | reviewed | picked、Batch { id; direction; candidates: Candidate[]; critiques: Critique[]; rejections: { candidateId; reason }[]; contractVersion?; createdAt; status }。
 validateCandidate：priors 少于 3 条 throw "a candidate needs at least three prior works"；任一 prior 的 work 或 delta 为空 throw "every prior needs a delta"；precision 为 hypothesis 时 prediction 与 test 必填（复用 model 的 validateQuestion）。
 validateBatch：候选 1–5 条；id 唯一；id 形如 P-<批次序号>-<序>。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): validate proposal candidates and batches"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): validate proposal candidates and batches"
 
 ### Task 2: 批次的服务：保存与呈现门槛
 
@@ -93,7 +93,7 @@ validateBatch：候选 1–5 条；id 唯一；id 形如 P-<批次序号>-<序>�
 - Consumes: Batch、Critique、validateBatch
 - Produces: saveBatch(batch: Batch, now: string): Batch；presentable(batch: Batch): boolean；survivors(batch: Batch): Candidate[]
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 1、5）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 1、5）**
 ~~~ts
 it('is not presentable until every candidate has a critique', () => {
   const batch = saveBatch(raw(), '2026-11-21T00:00:00.000Z')
@@ -104,11 +104,11 @@ it('drops a candidate the critic killed', () => {
   expect(survivors(reviewed).map(c => c.id)).not.toContain('P-1-1')
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-proposal.spec.ts -t presentable
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-proposal.spec.ts -t presentable
+- [x] **Step 3: 实现**
 saveBatch 校验后返回规范化批次（状态 draft，rejections 空，critiques 空，createdAt 归一化）。presentable 要求状态不是 draft、每条候选都有 critique、且至少一条 verdict 为 keep。survivors 返回所有 verdict 不是 drop 的候选。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): gate a proposal batch on its critique"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): gate a proposal batch on its critique"
 
 ### Task 3: 画像文件协议
 
@@ -118,7 +118,7 @@ saveBatch 校验后返回规范化批次（状态 draft，rejections 空，criti
 **Interfaces:**
 - Produces: PROFILE_SECTIONS（做什么 / 看重什么 / 不要提什么）；parseProfile(text: string): Profile；emptyProfile(): Profile
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 ~~~ts
 const doc = [
   '# 研究画像', '', '## 做什么', '多模态检索。', '', '## 看重什么', '架构上的新机制。', '', '## 不要提什么', '纯调参。',
@@ -129,11 +129,11 @@ it('refuses a document missing a section', () => {
   expect(() => parseProfile(broken)).toThrow(/不要提什么/)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-profile.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-profile.spec.ts
+- [x] **Step 3: 实现**
 按 `## <节名>` 切块；缺失任一节 throw 并点名该节；返回以节名为键的记录。emptyProfile 返回三节皆空的对象，供首次使用。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): read the taste profile file"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): read the taste profile file"
 
 ### Task 4: 批判与呈现
 
@@ -143,7 +143,7 @@ it('refuses a document missing a section', () => {
 **Interfaces:**
 - Produces: critique(batch: Batch, reviews: Critique[]): Batch
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 2）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 2）**
 ~~~ts
 it('refuses a review of a candidate the batch does not hold', () => {
   expect(() => critique(batch, [{ candidateId: 'ghost', verdict: 'keep', reason: 'r' }])).toThrow(/ghost/)
@@ -155,11 +155,11 @@ it('refuses to present a batch whose every candidate was dropped', () => {
   expect(presentable(critique(batch, allDropped()))).toBe(false)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-batch.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-batch.spec.ts
+- [x] **Step 3: 实现**
 critique 拒绝未知候选、拒绝重复评审同一候选、要求每条 verdict 有非空 reason；凑齐后把状态改为 reviewed。presentable 额外要求至少一条 keep。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): record critiques and settle the batch"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): record critiques and settle the batch"
 
 ### Task 5: 挑选与拒绝
 
@@ -171,7 +171,7 @@ critique 拒绝未知候选、拒绝重复评审同一候选、要求每条 verd
 - Consumes: Batch、survivors、Decision
 - Produces: pick(batch: Batch, candidateId: string, by: string, at: string): { batch: Batch; decision: Decision }
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 3）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 3）**
 ~~~ts
 it('refuses a candidate the critic dropped', () => {
   expect(() => pick(reviewed, droppedId, 'me', AT)).toThrow(/critic/)
@@ -185,11 +185,11 @@ it('produces a human decision', () => {
   expect(pick(reviewed, keptId, 'me', AT).decision).toMatchObject({ kind: 'pick_proposal', actor: 'human', by: 'me' })
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-pick.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-pick.spec.ts
+- [x] **Step 3: 实现**
 pick 要求批次 presentable；候选必须在 survivors 里，否则 throw 并点名 critic；其余候选写入 rejections，reason 记批判意见，没有意见则记 "not picked"。Decision 的 kind 为 pick_proposal，targetId 为批次 id，at 过 assertIsoTimestamp。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): pick one candidate and record the rejection"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): pick one candidate and record the rejection"
 
 ### Task 6: 从候选起草契约
 
@@ -200,7 +200,7 @@ pick 要求批次 presentable；候选必须在 survivors 里，否则 throw 并
 - Consumes: Candidate、Contract
 - Produces: draftContract(candidate: Candidate, requirement: string, version: number): Contract
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 5）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 5）**
 ~~~ts
 it('carries the candidate prediction into a criterion', () => {
   const contract = draftContract(hypothesisCandidate, '架构上的新机制', 1)
@@ -213,11 +213,11 @@ it('caps the budget at the candidate estimate', () => {
   expect(draftContract(candidate, 'r', 1).budgetCapYuan).toBe(candidate.feasibility.yuan)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-contract-draft.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-contract-draft.spec.ts
+- [x] **Step 3: 实现**
 契约由候选决定：goal 取 question；requirement 取人给的那句（去空白后非空）；criteria 由 prediction 与 test 各生成一条，id 为 c1、c2；budgetCapYuan 取 feasibility.yuan；stopCondition 取 test；signedBy 先留空串，签名时再填。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): draft a contract from a picked candidate"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): draft a contract from a picked candidate"
 
 ### Task 7: 签发契约
 
@@ -228,7 +228,7 @@ it('caps the budget at the candidate estimate', () => {
 - Consumes: Contract、FrozenContract、freezeContract、ResearchRepo
 - Produces: sign(repo: ResearchRepo, contract: Contract, by: string, at: string): { frozen: FrozenContract; decision: Decision }
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 4）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 4）**
 ~~~ts
 it('freezes and stores the contract', () => {
   const { frozen } = sign(repo, contract, 'me', AT)
@@ -243,11 +243,11 @@ it('refuses to sign the same version twice', () => {
   expect(() => sign(repo, contract, 'me', AT)).toThrow(/frozen/)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-sign.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-sign.spec.ts
+- [x] **Step 3: 实现**
 sign 先 freezeContract（signedBy 取 by，signedAt 归一化），再 repo.saveContract（版本已存在且 hash 不同即抛）；随后 repo.recordDecision 记一条 sign_contract，targetId 为 contract:<version>。先存契约再记决定。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): sign and freeze a contract"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): sign and freeze a contract"
 
 ### Task 8: 主会话工具与端到端
 
@@ -258,7 +258,7 @@ sign 先 freezeContract（signedBy 取 by，signedAt 归一化），再 repo.sav
 - Consumes: 前面全部
 - Produces: researchTools(host: ResearchToolsHost): Tool[]，含 research_propose、research_critique、research_pick、research_sign、research_status
 
-- [ ] **Step 1: 写端到端测试（不起会话，直接调服务）**
+- [x] **Step 1: 写端到端测试（不起会话，直接调服务）**
 ~~~ts
 it('runs a direction to a signed contract', () => {
   // saveBatch -> critique -> pick -> draftContract -> sign
@@ -266,11 +266,11 @@ it('runs a direction to a signed contract', () => {
   expect(repo.decisionsFor(batch.id).map(d => d.kind)).toEqual(['pick_proposal'])
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-loop.spec.ts
-- [ ] **Step 3: 实现工具**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-loop.spec.ts
+- [x] **Step 3: 实现工具**
 五个工具只做参数校验与转发：research_propose（存批次）、research_critique（记评审）、research_pick（挑）、research_sign（签）、research_status（读）。schema 用 zod，描述里写明「只有人能做的两个动作」。
-- [ ] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-loop.spec.ts；再跑 pnpm typecheck
-- [ ] **Step 5: 提交** — git commit -m "feat(research): expose the proposal loop to the main session"
+- [x] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-loop.spec.ts；再跑 pnpm typecheck
+- [x] **Step 5: 提交** — git commit -m "feat(research): expose the proposal loop to the main session"
 
 ---
 ## 边界（本计划不做）

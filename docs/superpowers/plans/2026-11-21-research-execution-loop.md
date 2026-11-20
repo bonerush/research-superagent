@@ -61,17 +61,17 @@
 **Interfaces:**
 - Produces: `researchTool(repo): Tool`，schema 为 `{ action: propose|critique|pick|sign|status, ... }` 的判别联合；旧五个名字不再注册
 
-- [ ] **Step 1: 改测试，按新入口驱动**
+- [x] **Step 1: 改测试，按新入口驱动**
 ~~~ts
 const research = researchTool(store)
 await research.execute({ action: 'propose', id: 'B-1', direction: 'd', candidates: [candidate(1), candidate(2)] }, signal)
 await research.execute({ action: 'critique', batchId: 'B-1', reviews: [...] }, signal)
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-loop.spec.ts
-- [ ] **Step 3: 实现判别联合**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-loop.spec.ts
+- [x] **Step 3: 实现判别联合**
 schema 用 `z.discriminatedUnion("action", [...])`；每个分支复用原有的参数 schema；`execute` 按 action 分派到同一组服务函数。工具描述压到两句以内。
-- [ ] **Step 4: 跑测试与预算** — Run: `pnpm vitest run tests/research-loop.spec.ts tests/model-surface.spec.ts`；Expected: 全绿，且工具面字符数低于 61,500
-- [ ] **Step 5: 提交** — git commit -m "refactor(research): multiplex the proposal tools behind one action"
+- [x] **Step 4: 跑测试与预算** — Run: `pnpm vitest run tests/research-loop.spec.ts tests/model-surface.spec.ts`；Expected: 全绿，且工具面字符数低于 61,500
+- [x] **Step 5: 提交** — git commit -m "refactor(research): multiplex the proposal tools behind one action"
 
 ### Task 2: 事前登记协议
 
@@ -81,7 +81,7 @@ schema 用 `z.discriminatedUnion("action", [...])`；每个分支复用原有的
 **Interfaces:**
 - Produces: `Protocol`、`Measurement`、`validateProtocol(p: Protocol, contract: Contract): void`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 ~~~ts
 it('refuses a protocol that measures no criterion', () => {
   expect(() => validateProtocol(proto({ measurements: [] }), contract)).toThrow(/criterion/)
@@ -93,11 +93,11 @@ it('refuses a protocol for a different contract version', () => {
   expect(() => validateProtocol(proto({ contractVersion: 9 }), contract)).toThrow(/contract/)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-protocol.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-protocol.spec.ts
+- [x] **Step 3: 实现**
 类型：Measurement { criterionId; from }、Protocol { attemptId; questionId; contractVersion; commands: string[]; measurements: Measurement[]; expected; stopCondition; machineHours; registeredAt }。校验：契约的每条 criterion 都要有 measurement；commands 至少一条；stopCondition 非空；machineHours 为正；contractVersion 必须等于契约版本。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): pre-register the experiment protocol"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): pre-register the experiment protocol"
 
 ### Task 3: 尝试的生命周期
 
@@ -108,7 +108,7 @@ it('refuses a protocol for a different contract version', () => {
 - Consumes: Attempt、Run、canConclude
 - Produces: `openAttempt(protocol, at): Attempt`、`start(a: Attempt): Attempt`、`wait(a: Attempt): Attempt`、`conclude(a: Attempt, verdict, evidence: string[]): Attempt`
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 2）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 2）**
 ~~~ts
 it('opens as opened', () => { expect(openAttempt(proto, AT).status).toBe('opened') })
 it('refuses to conclude without a run', () => {
@@ -121,11 +121,11 @@ it('waits and resumes', () => {
   expect(start(waiting).status).toBe('running')
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-attempt.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-attempt.spec.ts
+- [x] **Step 3: 实现**
 openAttempt 由协议派生：id 取 protocol.attemptId，slug 与 branch 由调用方随后写入（本函数只放 id、questionId、contractVersion、status）。start 只接受 opened 或 waiting；wait 只接受 running；conclude 要求 status 为 running 或 waiting、evidence 至少一条（复用 canConclude），并写入 verdict。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): drive an attempt through its states"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): drive an attempt through its states"
 
 ### Task 4: 存储里的协议与查询
 
@@ -135,7 +135,7 @@ openAttempt 由协议派生：id 取 protocol.attemptId，slug 与 branch 由调
 **Interfaces:**
 - Produces: attempts 表增加 `protocol TEXT`；`saveAttempt` 写协议；`getProtocol(attemptId): Protocol | undefined`；`listAttempts(status?): Attempt[]`
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 ~~~ts
 it('round-trips the protocol with the attempt', () => {
   repo.saveAttempt(a); repo.saveProtocol(proto)
@@ -143,11 +143,11 @@ it('round-trips the protocol with the attempt', () => {
 })
 it('lists attempts by status', () => { expect(repo.listAttempts('opened')).toHaveLength(1) })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-attempt-store.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-attempt-store.spec.ts
+- [x] **Step 3: 实现**
 ALTER 语句用 `CREATE TABLE IF NOT EXISTS` 的既有做法无法加列，因此在 `createResearchSchema` 里对 attempts 建表语句直接加列，并在 `createResearchSchema` 末尾补一条 `ALTER TABLE attempts ADD COLUMN protocol TEXT` 的容错执行（已存在则忽略错误）。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(store): keep the protocol beside its attempt"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(store): keep the protocol beside its attempt"
 
 ### Task 5: 账本
 
@@ -157,7 +157,7 @@ ALTER 语句用 `CREATE TABLE IF NOT EXISTS` 的既有做法无法加列，因�
 **Interfaces:**
 - Produces: `Rate`（machine → yuan/hour）、`runCost(run: Run, rates: Record<string, number>): number`、`attemptCost(runs: Run[], rates): number`
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 5）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 5）**
 ~~~ts
 it('charges by the minute of the boot', () => {
   expect(runCost(hourRun(), RATES)).toBe(2)
@@ -169,11 +169,11 @@ it('refuses overlapping runs on one machine', () => {
   expect(() => attemptCost([run(0, 60), run(30, 90)], RATES)).toThrow(/overlap/)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-ledger.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-ledger.spec.ts
+- [x] **Step 3: 实现**
 runCost 用 (endedAt - startedAt) 的分钟数除以 60 乘费率；未知机型 throw；结束早于开始 throw。attemptCost 先按机器分组、按开始时间排序，检查区间不重叠，再求和。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): price each run and refuse overlapping ones"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): price each run and refuse overlapping ones"
 
 ### Task 6: 机器状态与空闲判定
 
@@ -183,7 +183,7 @@ runCost 用 (endedAt - startedAt) 的分钟数除以 60 乘费率；未知机型
 **Interfaces:**
 - Produces: `MachineStatus = off | booting | idle | running`、`Activity { jobRunning; lastJobEndedAt?; lastSessionAt?; lastTransferAt? }`、`shouldPowerOff(activity, now: string, idleMs: number): boolean`
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 3）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 3）**
 ~~~ts
 it('keeps the machine when a job runs', () => {
   expect(shouldPowerOff({ jobRunning: true }, '2026-11-21T02:00:00.000Z', HOUR)).toBe(false)
@@ -195,11 +195,11 @@ it('ignores a timestamp from the future', () => {
   expect(shouldPowerOff({ jobRunning: false, lastSessionAt: '2026-11-22T00:00:00.000Z' }, '2026-11-21T01:00:00.000Z', HOUR)).toBe(false)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-machine.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-machine.spec.ts
+- [x] **Step 3: 实现**
 取三种活动时间里最晚的一个；没有活动时间时视为刚开机（不关机）；未来时间按「现在」处理（不关机）；差值大于等于 idleMs 才关机。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): decide when an idle machine should stop"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): decide when an idle machine should stop"
 
 ### Task 7: MachinePort 与端点适配器
 
@@ -209,7 +209,7 @@ it('ignores a timestamp from the future', () => {
 **Interfaces:**
 - Produces: `MachinePort { status(); powerOn(); powerOff(); balanceYuan() }`、`httpMachinePort({ endpoints, token, instanceId, fetch? }): MachinePort`、`MachineEndpoints { status; powerOn; powerOff; balance }`
 
-- [ ] **Step 1: 写失败测试（用假 fetch）**
+- [x] **Step 1: 写失败测试（用假 fetch）**
 ~~~ts
 it('sends the token header and the instance id', async () => {
   const calls: RequestInit[] = []
@@ -222,11 +222,11 @@ it('maps a rejected request to the status code', async () => {
   await expect(port.powerOn()).rejects.toThrow(/403/)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-machine-port.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-machine-port.spec.ts
+- [x] **Step 3: 实现**
 四个端点都在 `MachineEndpoints` 里由配置给出，不写死路径；请求用 POST + JSON，头带 `authorization` 与 `content-type`；非 2xx 时把状态码与响应体前 200 字带进错误；`balanceYuan` 从响应体的 `balance` 字段读数字。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): talk to the machine through configured endpoints"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): talk to the machine through configured endpoints"
 
 ### Task 8: supervisor 与止损
 
@@ -236,7 +236,7 @@ it('maps a rejected request to the status code', async () => {
 **Interfaces:**
 - Produces: `supervise({ port, activity, now, idleMs, onPowerOff }): Promise<topped|kept|off>`
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 4）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 4）**
 ~~~ts
 it('powers off an idle machine once', async () => {
   const calls: string[] = []
@@ -251,11 +251,11 @@ it('does nothing when the machine is already off', async () => {
   expect(await supervise({ ...base, port: fakePort({ status: 'off' }) })).toBe('off')
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-supervisor.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-supervisor.spec.ts
+- [x] **Step 3: 实现**
 先读状态：off 直接返回；否则用 `shouldPowerOff` 判定；要关时调 `port.powerOff()` 再 `onPowerOff(now)` 记录。状态读取失败时返回 kept，并把错误交给调用方（不吞）。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): stop an idle machine from the supervisor"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): stop an idle machine from the supervisor"
 
 ### Task 9: 端到端
 
@@ -265,7 +265,7 @@ it('does nothing when the machine is already off', async () => {
 - Consumes: 前面全部
 - Produces: 无新接口
 
-- [ ] **Step 1: 写串起来的测试**
+- [x] **Step 1: 写串起来的测试**
 ~~~ts
 it('runs a signed contract to a concluded attempt with its cost', async () => {
   // sign -> protocol -> openAttempt -> start -> run -> conclude -> cost
@@ -273,10 +273,10 @@ it('runs a signed contract to a concluded attempt with its cost', async () => {
   expect(repo.costOfAttempt(attempt.id)).toBeCloseTo(2)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-execution.spec.ts
-- [ ] **Step 3: 接线** — 接口对不上时改接口，不改测试。
-- [ ] **Step 4: 跑全量** — Run: `pnpm typecheck && pnpm test`；Expected: 新增全绿，既有 9 文件 / 39 测试仍是唯一失败
-- [ ] **Step 5: 提交** — git commit -m "test(research): cover the execution loop end to end"
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-execution.spec.ts
+- [x] **Step 3: 接线** — 接口对不上时改接口，不改测试。
+- [x] **Step 4: 跑全量** — Run: `pnpm typecheck && pnpm test`；Expected: 新增全绿，既有 9 文件 / 39 测试仍是唯一失败
+- [x] **Step 5: 提交** — git commit -m "test(research): cover the execution loop end to end"
 
 ---
 ## 边界（本计划不做）

@@ -51,7 +51,7 @@
 **Interfaces:**
 - Produces: EvidencePackage、validateEvidence(pkg, contract): void
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 ~~~ts
 it('refuses a package that reports no value for a criterion', () => {
   expect(() => validateEvidence(pkg({ metrics: {} }), contract)).toThrow(/criterion/)
@@ -63,11 +63,11 @@ it('refuses a package with no data snapshot', () => {
   expect(() => validateEvidence(pkg({ dataSnapshot: { kind: 'hash', value: '' } }), contract)).toThrow(/data/)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-evidence.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-evidence.spec.ts
+- [x] **Step 3: 实现**
 类型：DataSnapshot（kind 为 hash|path|copy，value 为字符串）、EvidencePackage（attemptId、branch、commit、image、machineType、dataSnapshot、command、envFile 可选、logs、artifacts、metrics、reproduce）。校验：commit 与 command 非空；dataSnapshot.value 非空；metrics 覆盖契约的每条 criterion；reproduce 非空。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): define and validate the evidence package"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): define and validate the evidence package"
 
 ### Task 2: 复现判定
 
@@ -77,7 +77,7 @@ it('refuses a package with no data snapshot', () => {
 **Interfaces:**
 - Produces: Verification（commit、dataHash、command、metrics）、Reproducibility、checkReproduction(original, verification, contract)
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 2）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 2）**
 ~~~ts
 it('reproduces when code, data, command and metrics agree', () => {
   expect(checkReproduction(pkg(), verify(), contract)).toBe('reproducible')
@@ -92,11 +92,11 @@ it('is inconclusive when a metric is missing', () => {
   expect(checkReproduction(pkg(), verify({ metrics: {} }), contract)).toBe('inconclusive')
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-reproduction.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-reproduction.spec.ts
+- [x] **Step 3: 实现**
 先比 commit、dataHash、command：任一不同即 not_reproducible。再逐条 criterion：缺值 inconclusive；数值在容差内通过；超出或非数值不等 not_reproducible；契约未给容差时精确相等。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): judge whether a rerun reproduces the result"
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): judge whether a rerun reproduces the result"
 
 ### Task 3: 判定落到尝试上
 
@@ -106,7 +106,7 @@ it('is inconclusive when a metric is missing', () => {
 **Interfaces:**
 - Produces: settle(attempt, outcome): Attempt
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 ~~~ts
 it('downgrades an unreproduced result to inconclusive', () => {
   expect(settle(concluded, 'not_reproducible').verdict).toBe('inconclusive')
@@ -115,10 +115,10 @@ it('refuses to settle an attempt that is not concluded', () => {
   expect(() => settle(running, 'reproducible')).toThrow(/concluded/)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-reproduction.spec.ts -t settle
-- [ ] **Step 3: 实现** — 仅接受 concluded；reproducible 原样返回；其余把 verdict 置为 inconclusive。
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): settle a verdict on its reproduction"
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-reproduction.spec.ts -t settle
+- [x] **Step 3: 实现** — 仅接受 concluded；reproducible 原样返回；其余把 verdict 置为 inconclusive。
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): settle a verdict on its reproduction"
 ### Task 4: 报告草稿
 
 **Files:**
@@ -128,7 +128,7 @@ it('refuses to settle an attempt that is not concluded', () => {
 **Interfaces:**
 - Produces: ReportInput、draftReport(input): string
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 4）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 4）**
 
 ~~~ts
 it('states the verdict, the reproduction and the cost', () => {
@@ -141,14 +141,14 @@ it('names the stop condition the contract set', () => {
 })
 ~~~
 
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-report.spec.ts
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-report.spec.ts
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 纯函数，输出 Markdown：标题带 verdict；一段结论；证据表（commit、数据快照、命令、指标）；复现判定一节；花费一节；停止条件；以及「什么会改变这个结论」一段。不可复现时结论里必须写出。
 
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
 
-- [ ] **Step 5: 提交** — git commit -m "feat(research): draft the report a person reads"
+- [x] **Step 5: 提交** — git commit -m "feat(research): draft the report a person reads"
 
 ### Task 5: 收成果与判死
 
@@ -159,7 +159,7 @@ it('names the stop condition the contract set', () => {
 **Interfaces:**
 - Produces: accept(attempt, outcome, by, at): Decision、kill(targetId, note, by, at): Decision
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 3、5）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 3、5）**
 
 ~~~ts
 it('accepts a reproduced, supported attempt', () => {
@@ -176,14 +176,14 @@ it('refuses to kill without a reason', () => {
 })
 ~~~
 
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-decide.spec.ts
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-decide.spec.ts
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 accept 要求 concluded、verdict 为 supported、outcome 为 reproducible，返回 kind 为 accept_result 的 Decision，targetId 为 attempt id；kill 要求 note 去空白后非空，返回 kill_direction。两者 actor 都是 human，时间过 assertIsoTimestamp。
 
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
 
-- [ ] **Step 5: 提交** — git commit -m "feat(research): accept a result or kill a direction"
+- [x] **Step 5: 提交** — git commit -m "feat(research): accept a result or kill a direction"
 
 ### Task 6: 存储与工具动作
 
@@ -194,7 +194,7 @@ accept 要求 concluded、verdict 为 supported、outcome 为 reproducible，返
 **Interfaces:**
 - Produces: saveEvidence、getEvidence、saveReport、getReport；工具动作 evidence 与 decide
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 
 ~~~ts
 it('stores the evidence and the report beside the attempt', () => {
@@ -207,14 +207,14 @@ it('refuses a second evidence package for one attempt', () => {
 })
 ~~~
 
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-convergence.spec.ts
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-convergence.spec.ts
 
-- [ ] **Step 3: 实现**
+- [x] **Step 3: 实现**
 两张表：evidence（attempt_id 主键、json）与 reports（attempt_id 主键、text）。saveEvidence 先校验再插入，重复拒绝。工具 evidence 收 attemptId、outcome 与证据包，存证据、起草并保存报告、返回报告文本；decide 收 op 为 accept 或 kill、attemptId 或 targetId、by、note。
 
-- [ ] **Step 4: 跑测试确认通过** — Expected: PASS
+- [x] **Step 4: 跑测试确认通过** — Expected: PASS
 
-- [ ] **Step 5: 提交** — git commit -m "feat(research): store the evidence and expose the deciding actions"
+- [x] **Step 5: 提交** — git commit -m "feat(research): store the evidence and expose the deciding actions"
 
 ### Task 7: 端到端
 
@@ -225,7 +225,7 @@ it('refuses a second evidence package for one attempt', () => {
 - Consumes: 前面全部
 - Produces: 无新接口
 
-- [ ] **Step 1: 写串起来的测试**
+- [x] **Step 1: 写串起来的测试**
 
 ~~~ts
 it('turns a concluded attempt into an accepted report', async () => {
@@ -235,13 +235,13 @@ it('turns a concluded attempt into an accepted report', async () => {
 })
 ~~~
 
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-convergence.spec.ts
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-convergence.spec.ts
 
-- [ ] **Step 3: 接线** — 接口对不上时改接口，不改测试。
+- [x] **Step 3: 接线** — 接口对不上时改接口，不改测试。
 
-- [ ] **Step 4: 跑全量** — Run: pnpm typecheck && pnpm test；Expected: 新增全绿，既有基线不变
+- [x] **Step 4: 跑全量** — Run: pnpm typecheck && pnpm test；Expected: 新增全绿，既有基线不变
 
-- [ ] **Step 5: 提交** — git commit -m "test(research): cover the convergence loop end to end"
+- [x] **Step 5: 提交** — git commit -m "test(research): cover the convergence loop end to end"
 
 ---
 

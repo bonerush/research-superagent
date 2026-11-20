@@ -68,7 +68,7 @@
 **Interfaces:**
 - Produces: Precision、Question、Criterion、Contract、FrozenContract、Attempt、Verdict、Run、Decision；validateQuestion(q: Question): void；isTestable(q: Question): boolean；assertIsoTimestamp(value: string): string
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 ~~~ts
 import { describe, expect, it } from 'vitest'
 import { assertIsoTimestamp, isTestable, validateQuestion, type Question } from '../src/research/model.ts'
@@ -99,16 +99,16 @@ describe('assertIsoTimestamp', () => {
   })
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败**
+- [x] **Step 2: 跑测试确认失败**
 Run: pnpm vitest run tests/research-model.spec.ts
 Expected: FAIL —— 找不到 src/research/model.ts
-- [ ] **Step 3: 实现 src/research/model.ts**
+- [x] **Step 3: 实现 src/research/model.ts**
 类型：Precision = direction | topic | hypothesis；Question { id; statement; precision; prediction?; test?; status: open|testing|answered|abandoned; createdAt }；Criterion { id; statement; tolerance? }；Contract { version; goal; requirement; criteria: Criterion[]; budgetCapYuan; stopCondition; signedBy; signedAt? }；FrozenContract = Contract & { hash }；Verdict = supported|refuted|inconclusive；Attempt { id; slug; questionId; contractVersion; branch; protocolPath; agendaEntryId?; status: opened|running|waiting|concluded|abandoned; verdict? }；Run { id; attemptId; kind: experiment|verification; machine; image; commit; command; params; startedAt; endedAt?; costYuan?; logPath?; artifacts: string[] }；Decision { id; kind: sign_contract|kill_direction|accept_result; targetId; actor: human; by; at; note? }。
 validateQuestion：precision 为 hypothesis 时 prediction 与 test 都必须非空，否则 throw "hypothesis requires a prediction and a test"。isTestable 返回该条件是否满足。
 assertIsoTimestamp：用 Date.parse 解析；原串必须带时区标识（结尾 Z 或 ±hh:mm），否则 throw "timestamp must carry a timezone"；返回 toISOString() 的规范化形式。全仓所有时间戳都过它。
-- [ ] **Step 4: 跑测试确认通过**
+- [x] **Step 4: 跑测试确认通过**
 Run: pnpm vitest run tests/research-model.spec.ts；Expected: PASS
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 ~~~bash
 git add src/research/model.ts tests/research-model.spec.ts
 git commit -m "feat(research): add the domain types and their validators"
@@ -123,7 +123,7 @@ git commit -m "feat(research): add the domain types and their validators"
 - Consumes: Contract, FrozenContract
 - Produces: canonicalContract(c: Contract): string；contractHash(c: Contract): string；freezeContract(c: Contract, by: string, at: string): FrozenContract；verifyContract(f: FrozenContract): boolean
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 ~~~ts
 it('hashes equal contracts identically regardless of key order', () => {
   const a = { version: 1, goal: 'g', requirement: 'r', criteria: [{ id: 'c1', statement: 's' }], budgetCapYuan: 100, stopCondition: 't' }
@@ -135,11 +135,11 @@ it('detects a changed criterion after freezing', () => {
   expect(verifyContract({ ...f, budgetCapYuan: 200 })).toBe(false)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-contract.spec.ts
-- [ ] **Step 3: 实现 src/research/contract.ts**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-contract.spec.ts
+- [x] **Step 3: 实现 src/research/contract.ts**
 canonicalContract 按固定字段顺序与固定键集合序列化（不含 hash 与 signedAt）；contractHash 用 node:crypto 的 createHash("sha256")；freezeContract 写入 signedBy、规范化后的 signedAt 与 hash；verifyContract 重算比对。
-- [ ] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-contract.spec.ts；Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): freeze contracts with a canonical hash"
+- [x] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-contract.spec.ts；Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): freeze contracts with a canonical hash"
 
 ### Task 3: 议程解析
 
@@ -150,7 +150,7 @@ canonicalContract 按固定字段顺序与固定键集合序列化（不含 hash
 - Consumes: assertIsoTimestamp
 - Produces: AgendaEntry { id; question; precision; status; conclusion; evidence: string[]; decidedBy; at }；parseAgenda(text: string): AgendaEntry[]
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 1、5）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 1、5）**
 ~~~ts
 const LF = String.fromCharCode(10)
 const CRLF = String.fromCharCode(13, 10)
@@ -165,11 +165,11 @@ it('refuses an entry whose time has no zone', () => {
   expect(() => parseAgenda(doc.replace('2026-11-21T00:00:00.000Z', '2026-11-21 00:00'))).toThrow(/timezone/)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-agenda.spec.ts
-- [ ] **Step 3: 实现 parseAgenda**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-agenda.spec.ts
+- [x] **Step 3: 实现 parseAgenda**
 按 ### 标题切块；块内读 - key: value；缺字段或未知字段一律 throw，消息带 1 基行号；先把 CRLF 归一为 LF；evidence 按逗号分隔后 trim、去空；at 过 assertIsoTimestamp。
-- [ ] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-agenda.spec.ts；Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): parse the agenda file strictly"
+- [x] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-agenda.spec.ts；Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): parse the agenda file strictly"
 
 ### Task 4: 议程追加（乐观并发）
 
@@ -179,7 +179,7 @@ it('refuses an entry whose time has no zone', () => {
 **Interfaces:**
 - Produces: renderEntry(e: AgendaEntry): string；agendaDigest(text: string): string；appendEntry(text: string, e: AgendaEntry, digest: string): string；assertAgendaWriter(role: string): void
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 3）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 3）**
 ~~~ts
 it('appends and round-trips', () => {
   const base = '# Agenda' + LF
@@ -198,11 +198,11 @@ it('refuses a writer that is not the bookkeeper', () => {
   expect(() => assertAgendaWriter('scout')).toThrow(/bookkeeper/)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-agenda.spec.ts -t stale
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-agenda.spec.ts -t stale
+- [x] **Step 3: 实现**
 renderEntry 输出与解析器互逆的块；agendaDigest 用 sha256(归一化文本)；appendEntry 先比 digest，不符 throw "stale agenda read"，再 parse 查重复 id，最后在末尾追加空行与新块；assertAgendaWriter 只允许 bookkeeper。
-- [ ] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-agenda.spec.ts；Expected: PASS
-- [ ] **Step 5: 提交** — git commit -m "feat(research): append agenda entries against a stamped read"
+- [x] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-agenda.spec.ts；Expected: PASS
+- [x] **Step 5: 提交** — git commit -m "feat(research): append agenda entries against a stamped read"
 
 ### Task 5: 建表与 Question/Contract 仓储
 
@@ -214,7 +214,7 @@ renderEntry 输出与解析器互逆的块；agendaDigest 用 sha256(归一化�
 - Consumes: Question, FrozenContract
 - Produces: createResearchSchema(db: DatabaseSync): void；ResearchRepo { constructor(db); saveQuestion(q); getQuestion(id); saveContract(f); getContract(version) }
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 ~~~ts
 import { DatabaseSync } from 'node:sqlite'
 const open = () => { const db = new DatabaseSync(':memory:'); createResearchSchema(db); return new ResearchRepo(db) }
@@ -223,11 +223,11 @@ it('round-trips a question', () => {
   expect(repo.getQuestion('Q-0001')?.statement).toBe('x')
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-store.spec.ts
-- [ ] **Step 3: 实现**
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-store.spec.ts
+- [x] **Step 3: 实现**
 表：questions(id PK, statement, precision, prediction, test, status, created_at)、contracts(version PK, json, hash, signed_by, signed_at)、attempts(id PK, slug, question_id, contract_version, branch, protocol_path, agenda_entry_id, status, verdict)、runs(id PK, attempt_id, kind, machine, image, commit, command, params, started_at, ended_at, cost_yuan, log_path, artifacts)、decisions(id PK, kind, target_id, actor, by, at, note)。迁移按 migration.ts 现有写法加一步。
-- [ ] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-store.spec.ts
-- [ ] **Step 5: 提交** — git commit -m "feat(store): add the research schema and question repository"
+- [x] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-store.spec.ts
+- [x] **Step 5: 提交** — git commit -m "feat(store): add the research schema and question repository"
 
 ### Task 6: 契约版本不可变
 
@@ -237,17 +237,17 @@ it('round-trips a question', () => {
 **Interfaces:**
 - saveContract：版本已存在且 hash 相同为幂等；hash 不同则 throw
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 ~~~ts
 it('refuses to overwrite a frozen contract', () => {
   repo.saveContract(f1)
   expect(() => repo.saveContract({ ...f1, budgetCapYuan: 999, hash: 'other' })).toThrow(/frozen/)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-store.spec.ts -t frozen
-- [ ] **Step 3: 实现** — 读同版本行：无则插入；有且 hash 相同则返回；有且 hash 不同则 throw "contract version is frozen"。
-- [ ] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-store.spec.ts
-- [ ] **Step 5: 提交** — git commit -m "feat(store): keep frozen contracts immutable"
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-store.spec.ts -t frozen
+- [x] **Step 3: 实现** — 读同版本行：无则插入；有且 hash 相同则返回；有且 hash 不同则 throw "contract version is frozen"。
+- [x] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-store.spec.ts
+- [x] **Step 5: 提交** — git commit -m "feat(store): keep frozen contracts immutable"
 
 ### Task 7: Attempt 与 Run 的成本归集
 
@@ -257,7 +257,7 @@ it('refuses to overwrite a frozen contract', () => {
 **Interfaces:**
 - Produces: saveAttempt(a)；getAttempt(id)；addRun(r)；costOfAttempt(id): number
 
-- [ ] **Step 1: 写失败测试（覆盖 Review Focus 4）**
+- [x] **Step 1: 写失败测试（覆盖 Review Focus 4）**
 ~~~ts
 it('sums the runs of an attempt', () => { expect(costOfAttempt('A-1')).toBe(3.5) })
 it('accepts a verification run after the attempt concluded', () => {
@@ -266,10 +266,10 @@ it('accepts a verification run after the attempt concluded', () => {
   expect(repo.getAttempt('A-1')?.verdict).toBe('supported')
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-store.spec.ts -t verification
-- [ ] **Step 3: 实现** — costOfAttempt 用 SUM(cost_yuan)；addRun 不触碰 attempts 行，因此 concluded 后追加不会回退状态。
-- [ ] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-store.spec.ts
-- [ ] **Step 5: 提交** — git commit -m "feat(store): attribute run cost to attempts"
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-store.spec.ts -t verification
+- [x] **Step 3: 实现** — costOfAttempt 用 SUM(cost_yuan)；addRun 不触碰 attempts 行，因此 concluded 后追加不会回退状态。
+- [x] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-store.spec.ts
+- [x] **Step 5: 提交** — git commit -m "feat(store): attribute run cost to attempts"
 
 ### Task 8: 人的决定与两条守卫
 
@@ -280,7 +280,7 @@ it('accepts a verification run after the attempt concluded', () => {
 **Interfaces:**
 - Produces: recordDecision(d: Decision): void；decisionsFor(targetId: string): Decision[]；canDeleteBranch(a: Attempt): { ok: true } | { ok: false; reason: string }；canConclude(evidence: string[]): boolean
 
-- [ ] **Step 1: 写失败测试**
+- [x] **Step 1: 写失败测试**
 ~~~ts
 it('refuses a decision written by an agent', () => {
   expect(() => repo.recordDecision({ ...d, actor: 'agent' as never })).toThrow(/human/)
@@ -293,10 +293,10 @@ it('refuses a conclusion that cites no run', () => {
   expect(canConclude(['RUN-0012'])).toBe(true)
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-guards.spec.ts
-- [ ] **Step 3: 实现** — recordDecision 要求 actor 为 human 且 kind 在三种之内；canDeleteBranch 要求状态为 concluded 或 abandoned 且 agendaEntryId 非空；canConclude 要求 evidence 至少一条（不变式 2）。
-- [ ] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-guards.spec.ts
-- [ ] **Step 5: 提交** — git commit -m "feat(research): pin human decisions and the two guards"
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-guards.spec.ts
+- [x] **Step 3: 实现** — recordDecision 要求 actor 为 human 且 kind 在三种之内；canDeleteBranch 要求状态为 concluded 或 abandoned 且 agendaEntryId 非空；canConclude 要求 evidence 至少一条（不变式 2）。
+- [x] **Step 4: 跑测试确认通过** — Run: pnpm vitest run tests/research-guards.spec.ts
+- [x] **Step 5: 提交** — git commit -m "feat(research): pin human decisions and the two guards"
 
 ### Task 9: 端到端一致性
 
@@ -306,7 +306,7 @@ it('refuses a conclusion that cites no run', () => {
 - Consumes: 前面全部
 - Produces: 无新接口
 
-- [ ] **Step 1: 写一个有顺序的测试**
+- [x] **Step 1: 写一个有顺序的测试**
 ~~~ts
 it('runs a question from creation to a concluded attempt', () => {
   // saveQuestion -> freezeContract -> saveContract -> saveAttempt
@@ -314,10 +314,10 @@ it('runs a question from creation to a concluded attempt', () => {
   // -> appendEntry -> canDeleteBranch true
 })
 ~~~
-- [ ] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-e2e.spec.ts
-- [ ] **Step 3: 接线** — 若接口对不上，改的是接口而不是测试。
-- [ ] **Step 4: 跑全量** — Run: pnpm typecheck && pnpm test；Expected: 全绿
-- [ ] **Step 5: 提交** — git commit -m "test(research): cover the foundation end to end"
+- [x] **Step 2: 跑测试确认失败** — Run: pnpm vitest run tests/research-e2e.spec.ts
+- [x] **Step 3: 接线** — 若接口对不上，改的是接口而不是测试。
+- [x] **Step 4: 跑全量** — Run: pnpm typecheck && pnpm test；Expected: 全绿
+- [x] **Step 5: 提交** — git commit -m "test(research): cover the foundation end to end"
 
 ---
 ## Self-Review
