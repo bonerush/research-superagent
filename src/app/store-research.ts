@@ -3,6 +3,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import { verifyContract } from '../research/contract.ts'
 import { assertIsoTimestamp, validateQuestion, type Attempt, type Decision, type FrozenContract, type Question, type Run } from '../research/model.ts'
 import type { Batch } from '../research/proposal.ts'
+import type { Protocol } from '../research/protocol.ts'
 
 const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS questions (id TEXT PRIMARY KEY, statement TEXT NOT NULL, precision TEXT NOT NULL, prediction TEXT, test TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL)',
@@ -11,6 +12,7 @@ const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL, kind TEXT NOT NULL, machine TEXT NOT NULL, image TEXT NOT NULL, git_commit TEXT NOT NULL, command TEXT NOT NULL, params TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, cost_cents INTEGER, log_path TEXT, artifacts TEXT NOT NULL)',
   'CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, kind TEXT NOT NULL, target_id TEXT NOT NULL, actor TEXT NOT NULL, by TEXT NOT NULL, at TEXT NOT NULL, note TEXT)',
   'CREATE TABLE IF NOT EXISTS batches (id TEXT PRIMARY KEY, json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL)',
+  'CREATE TABLE IF NOT EXISTS protocols (attempt_id TEXT PRIMARY KEY, json TEXT NOT NULL)',
 ]
 
 /** Creates the research tables in an open database. Idempotent: safe on every start. */
@@ -196,5 +198,24 @@ export class ResearchRepo {
       ? this.db.prepare('SELECT json FROM batches WHERE status = ? ORDER BY created_at DESC').all(status)
       : this.db.prepare('SELECT json FROM batches ORDER BY created_at DESC').all()) as { json: string }[]
     return rows.map(row => JSON.parse(row.json) as Batch)
+  }
+
+  /** Stores the protocol an attempt runs under, keyed by the attempt. */
+  saveProtocol(protocol: Protocol): void {
+    this.db.prepare('INSERT OR REPLACE INTO protocols (attempt_id, json) VALUES (?, ?)').run(protocol.attemptId, JSON.stringify(protocol))
+  }
+
+  /** The protocol of one attempt, or undefined when it has none. */
+  getProtocol(attemptId: string): Protocol | undefined {
+    const row = this.db.prepare('SELECT json FROM protocols WHERE attempt_id = ?').get(attemptId) as { json?: string } | undefined
+    return row?.json ? (JSON.parse(row.json) as Protocol) : undefined
+  }
+
+  /** Every attempt, newest contract version first, optionally only those in one status. */
+  listAttempts(status?: Attempt['status']): Attempt[] {
+    const rows = (status
+      ? this.db.prepare('SELECT * FROM attempts WHERE status = ? ORDER BY contract_version DESC').all(status)
+      : this.db.prepare('SELECT * FROM attempts ORDER BY contract_version DESC').all()) as Record<string, unknown>[]
+    return rows.map(row => toAttempt(row))
   }
 }
