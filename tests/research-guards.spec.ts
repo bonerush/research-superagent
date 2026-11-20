@@ -30,6 +30,16 @@ describe('recordDecision', () => {
     const repo = open()
     expect(() => repo.recordDecision({ ...d, actor: 'agent' as never })).toThrow(/human/)
   })
+  it('refuses an unknown decision kind', () => {
+    const repo = open()
+    expect(() => repo.recordDecision({ ...d, kind: 'hack' as never })).toThrow(/unknown decision kind/)
+  })
+  it('orders decisions by normalized time', () => {
+    const repo = open()
+    repo.recordDecision({ ...d, id: 'D-1', at: '2026-11-21T08:00:00+08:00' })
+    repo.recordDecision({ ...d, id: 'D-2', at: '2026-11-21T01:00:00.000Z' })
+    expect(repo.decisionsFor('Q-0001').map(item => item.id)).toEqual(['D-1', 'D-2'])
+  })
 })
 
 describe('canDeleteBranch', () => {

@@ -14,15 +14,22 @@ describe('contractHash', () => {
     const b = { stopCondition: 't', budgetCapYuan: 100, criteria: [{ id: 'c1', statement: 's' }], requirement: 'r', goal: 'g', version: 1 }
     expect(contractHash(a as Contract)).toBe(contractHash(b as Contract))
   })
+  it('changes when a criterion changes', () => {
+    const changed = { ...base, criteria: [{ id: 'c1', statement: 'other' }] }
+    expect(contractHash(changed)).not.toBe(contractHash(base))
+  })
 })
 
 describe('freezeContract', () => {
+  it('verifies an unchanged contract', () => {
+    expect(verifyContract(freezeContract(base, 'human', '2026-11-21T00:00:00.000Z'))).toBe(true)
+  })
   it('detects a changed criterion after freezing', () => {
     const f = freezeContract(base, 'human', '2026-11-21T00:00:00.000Z')
-    expect(verifyContract({ ...f, budgetCapYuan: 200 })).toBe(false)
+    expect(verifyContract({ ...f, criteria: [{ id: 'c1', statement: 'other' }] })).toBe(false)
   })
-  it('keeps an unchanged contract valid', () => {
+  it('detects a changed budget after freezing', () => {
     const f = freezeContract(base, 'human', '2026-11-21T00:00:00.000Z')
-    expect(verifyContract(f)).toBe(true)
+    expect(verifyContract({ ...f, budgetCapYuan: 200 })).toBe(false)
   })
 })

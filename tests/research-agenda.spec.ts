@@ -28,6 +28,13 @@ describe('parseAgenda', () => {
   it('refuses an entry whose time has no zone', () => {
     expect(() => parseAgenda(doc.replace('2026-11-21T00:00:00.000Z', '2026-11-21 00:00'))).toThrow(/timezone/)
   })
+  it('refuses a heading that is not three hashes', () => {
+    const broken = doc.replace('### Q-0001', '## Q-0001')
+    expect(() => parseAgenda(broken)).toThrow(/heading/)
+  })
+  it('refuses a field line before any entry', () => {
+    expect(() => parseAgenda('# Agenda' + LF + '- question: x' + LF)).toThrow(/before any entry/)
+  })
 })
 
 describe('appendEntry', () => {
@@ -44,9 +51,14 @@ describe('appendEntry', () => {
     const digest = agendaDigest(base)
     expect(() => appendEntry(base + '### Q-9999' + LF, entry, digest)).toThrow(/stale/)
   })
+  it('refuses an answered entry that cites no run', () => {
+    const base = '# Agenda' + LF
+    expect(() => appendEntry(base, { ...entry, status: 'answered', evidence: [] }, agendaDigest(base))).toThrow(/without a run/)
+  })
   it('refuses a writer that is not the bookkeeper', () => {
     expect(() => assertAgendaWriter('scout')).toThrow(/bookkeeper/)
     expect(() => assertAgendaWriter('bookkeeper')).not.toThrow()
+    expect(() => appendEntry('# Agenda' + LF, entry, agendaDigest('# Agenda' + LF), 'scout')).toThrow(/bookkeeper/)
   })
 })
 

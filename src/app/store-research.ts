@@ -1,12 +1,13 @@
 /** Persistence for the research domain. Its own database, not the ticket store's schema. */
 import type { DatabaseSync } from 'node:sqlite'
-import type { Attempt, Decision, FrozenContract, Question, Run } from '../research/model.ts'
+import { verifyContract } from '../research/contract.ts'
+import { assertIsoTimestamp, validateQuestion, type Attempt, type Decision, type FrozenContract, type Question, type Run } from '../research/model.ts'
 
 const SCHEMA = [
   'CREATE TABLE IF NOT EXISTS questions (id TEXT PRIMARY KEY, statement TEXT NOT NULL, precision TEXT NOT NULL, prediction TEXT, test TEXT, status TEXT NOT NULL, created_at TEXT NOT NULL)',
   'CREATE TABLE IF NOT EXISTS contracts (version INTEGER PRIMARY KEY, json TEXT NOT NULL, hash TEXT NOT NULL, signed_by TEXT NOT NULL, signed_at TEXT NOT NULL)',
   'CREATE TABLE IF NOT EXISTS attempts (id TEXT PRIMARY KEY, slug TEXT NOT NULL, question_id TEXT NOT NULL, contract_version INTEGER NOT NULL, branch TEXT NOT NULL, protocol_path TEXT NOT NULL, agenda_entry_id TEXT, status TEXT NOT NULL, verdict TEXT)',
-  'CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL, kind TEXT NOT NULL, machine TEXT NOT NULL, image TEXT NOT NULL, git_commit TEXT NOT NULL, command TEXT NOT NULL, params TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, cost_yuan REAL, log_path TEXT, artifacts TEXT NOT NULL)',
+  'CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL, kind TEXT NOT NULL, machine TEXT NOT NULL, image TEXT NOT NULL, git_commit TEXT NOT NULL, command TEXT NOT NULL, params TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, cost_cents INTEGER, log_path TEXT, artifacts TEXT NOT NULL)',
   'CREATE TABLE IF NOT EXISTS decisions (id TEXT PRIMARY KEY, kind TEXT NOT NULL, target_id TEXT NOT NULL, actor TEXT NOT NULL, by TEXT NOT NULL, at TEXT NOT NULL, note TEXT)',
 ]
 
@@ -36,6 +37,7 @@ const toAttempt = (row: Record<string, unknown>): Attempt => ({
   status: row.status as Attempt['status'],
   ...(row.verdict == null ? {} : { verdict: row.verdict as Attempt['verdict'] }),
 })
+
 const DECISION_KINDS = ['sign_contract', 'kill_direction', 'accept_result'] as const
 
 const toDecision = (row: Record<string, unknown>): Decision => ({
@@ -48,17 +50,21 @@ const toDecision = (row: Record<string, unknown>): Decision => ({
   ...(row.note == null ? {} : { note: String(row.note) }),
 })
 
+/** Money in cents: the budget cap is compared against a sum, and float addition moves a boundary. */
+const toCents = (yuan: number | undefined): number | null => (yuan == null ? null : Math.round(yuan * 100))
+
 /** Reads and writes the five research aggregates. */
 export class ResearchRepo {
   constructor(private readonly db: DatabaseSync) {}
 
-  /** Inserts or updates one question, keyed by its id. */
+  /** Inserts or updates one question. A hypothesis that names no prediction or falsifier is refused here, not only by its editor. */
   saveQuestion(question: Question): void {
+    validateQuestion(question)
     this.db.prepare(
       'INSERT OR REPLACE INTO questions (id, statement, precision, prediction, test, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
     ).run(
       question.id, question.statement, question.precision,
-      question.prediction ?? null, question.test ?? null, question.status, question.createdAt,
+      question.prediction ?? null, question.test ?? null, question.status, assertIsoTimestamp(question.createdAt),
     )
   }
 
@@ -82,14 +88,17 @@ export class ResearchRepo {
       'INSERT INTO contracts (version, json, hash, signed_by, signed_at) VALUES (?, ?, ?, ?, ?)',
     ).run(
       contract.version, JSON.stringify(contract), contract.hash,
-      contract.signedBy, contract.signedAt ?? '',
+      contract.signedBy, assertIsoTimestamp(contract.signedAt ?? ''),
     )
   }
 
-  /** One frozen contract, or undefined when the version is unknown. */
+  /** One frozen contract, or undefined when the version is unknown. A stored contract that no longer verifies is refused. */
   getContract(version: number): FrozenContract | undefined {
     const row = this.db.prepare('SELECT json FROM contracts WHERE version = ?').get(version) as { json?: string } | undefined
-    return row?.json ? (JSON.parse(row.json) as FrozenContract) : undefined
+    if (!row?.json) return undefined
+    const stored = JSON.parse(row.json) as FrozenContract
+    if (!verifyContract(stored)) throw new Error(`contract version ${version} does not verify`)
+    return stored
   }
 
   /** Inserts or updates one attempt, keyed by its id. */
@@ -111,18 +120,19 @@ export class ResearchRepo {
   /** Records one boot. It never touches the attempt row, so a verification run after a verdict keeps the verdict. */
   addRun(run: Run): void {
     this.db.prepare(
-      'INSERT INTO runs (id, attempt_id, kind, machine, image, git_commit, command, params, started_at, ended_at, cost_yuan, log_path, artifacts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO runs (id, attempt_id, kind, machine, image, git_commit, command, params, started_at, ended_at, cost_cents, log_path, artifacts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     ).run(
       run.id, run.attemptId, run.kind, run.machine, run.image, run.commit, run.command,
-      JSON.stringify(run.params), run.startedAt, run.endedAt ?? null, run.costYuan ?? null,
+      JSON.stringify(run.params), assertIsoTimestamp(run.startedAt),
+      run.endedAt == null ? null : assertIsoTimestamp(run.endedAt), toCents(run.costYuan),
       run.logPath ?? null, JSON.stringify(run.artifacts),
     )
   }
 
   /** Money spent by one attempt across all its runs, in yuan. */
   costOfAttempt(id: string): number {
-    const row = this.db.prepare('SELECT COALESCE(SUM(cost_yuan), 0) AS total FROM runs WHERE attempt_id = ?').get(id) as { total?: number } | undefined
-    return row?.total ?? 0
+    const row = this.db.prepare('SELECT COALESCE(SUM(cost_cents), 0) AS total FROM runs WHERE attempt_id = ?').get(id) as { total?: number } | undefined
+    return (row?.total ?? 0) / 100
   }
 
   /** Records a judgement. Only a person can make one: an agent may propose, never write. */
@@ -133,10 +143,13 @@ export class ResearchRepo {
     }
     this.db.prepare(
       'INSERT INTO decisions (id, kind, target_id, actor, by, at, note) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    ).run(decision.id, decision.kind, decision.targetId, decision.actor, decision.by, decision.at, decision.note ?? null)
+    ).run(
+      decision.id, decision.kind, decision.targetId, decision.actor, decision.by,
+      assertIsoTimestamp(decision.at), decision.note ?? null,
+    )
   }
 
-  /** The judgements recorded against one target, oldest first. */
+  /** The judgements recorded against one target, oldest first by normalized time. */
   decisionsFor(targetId: string): Decision[] {
     const rows = this.db.prepare('SELECT * FROM decisions WHERE target_id = ? ORDER BY at').all(targetId) as Record<string, unknown>[]
     return rows.map(toDecision)

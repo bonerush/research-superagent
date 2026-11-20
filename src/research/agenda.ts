@@ -1,5 +1,6 @@
 /** The agenda file: the lab's only long-lived memory, parsed strictly so a hand edit cannot silently drop an entry. */
 import { createHash } from 'node:crypto'
+import { canConclude } from './guards.ts'
 import { assertIsoTimestamp, type Precision } from './model.ts'
 
 const LF = String.fromCharCode(10)
@@ -23,7 +24,7 @@ export interface AgendaEntry {
 
 /**
  * Reads every entry of an agenda document.
- * A missing field, an unknown field, or a stray line throws with the 1-based line of the entry it belongs to:
+ * A missing field, an unknown field, a malformed heading or a stray line throws with its 1-based line:
  * the parser refuses to guess, because a silently dropped entry is a lost conclusion.
  */
 export function parseAgenda(text: string): AgendaEntry[] {
@@ -58,20 +59,24 @@ export function parseAgenda(text: string): AgendaEntry[] {
     const lineNo = index + 1
     if (line.startsWith('### ')) {
       finish()
-      id = line.slice(4).trim()
+      const heading = line.slice(4).trim()
+      if (!heading) throw new Error(`agenda: line ${lineNo} is a heading with no id`)
+      id = heading
       headerLine = lineNo
       fields = new Map()
       return
     }
-    if (!line.trim() || line.startsWith('#')) return
-    if (!fields) return
-    if (!line.startsWith('- ')) throw new Error(`agenda: ${id ?? 'entry'} at line ${lineNo} is not a field line`)
+    if (!line.trim()) return
+    if (line.startsWith('# ')) return
+    if (line.startsWith('#')) throw new Error(`agenda: line ${lineNo} is not a \"### <id>\" heading`)
+    if (!fields) throw new Error(`agenda: line ${lineNo} is a field line before any entry`)
+    if (!line.startsWith('- ')) throw new Error(`agenda: ${id} at line ${lineNo} is not a field line`)
     const body = line.slice(2)
     const colon = body.indexOf(':')
-    if (colon < 0) throw new Error(`agenda: ${id ?? 'entry'} at line ${lineNo} is not a key: value line`)
+    if (colon < 0) throw new Error(`agenda: ${id} at line ${lineNo} is not a key: value line`)
     const key = body.slice(0, colon).trim()
     const value = body.slice(colon + 1).trim()
-    if (!(FIELDS as readonly string[]).includes(key)) throw new Error(`agenda: ${id ?? 'entry'} at line ${lineNo} has unknown field ${key}`)
+    if (!(FIELDS as readonly string[]).includes(key)) throw new Error(`agenda: ${id} at line ${lineNo} has unknown field ${key}`)
     fields.set(key, value)
   })
   finish()
@@ -98,7 +103,7 @@ export function agendaDigest(text: string): string {
 }
 
 /** The only role that may write the agenda; every other role proposes a change instead. */
-const AGENDA_WRITER = 'bookkeeper'
+export const AGENDA_WRITER = 'bookkeeper'
 
 /** Throws when a role other than the bookkeeper tries to write the agenda. */
 export function assertAgendaWriter(role: string): void {
@@ -108,10 +113,13 @@ export function assertAgendaWriter(role: string): void {
 /**
  * Appends one entry to the document that was read under `digest`.
  * A digest mismatch means someone else wrote since the read: appending would drop their entry, so it throws.
+ * An answered entry must cite a run, or the agenda would carry an opinion as a finding.
  */
-export function appendEntry(text: string, entry: AgendaEntry, digest: string): string {
+export function appendEntry(text: string, entry: AgendaEntry, digest: string, writer: string = AGENDA_WRITER): string {
+  assertAgendaWriter(writer)
   if (agendaDigest(text) !== digest) throw new Error('agenda: stale read, re-read before appending')
   if (parseAgenda(text).some(existing => existing.id === entry.id)) throw new Error(`agenda: duplicate id ${entry.id}`)
+  if (entry.status === 'answered' && !canConclude(entry.evidence)) throw new Error(`agenda: ${entry.id} is answered without a run`)
   const body = text.endsWith(LF) ? text : text + LF
   return body + LF + renderEntry(entry) + LF
 }
