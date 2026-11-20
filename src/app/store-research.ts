@@ -152,15 +152,35 @@ export class ResearchRepo {
   }
 
   /** The judgements recorded against one target, oldest first by normalized time. */
+  /** Writes the frozen contract and its decision in one transaction: neither lands without the other. */
+  signContract(frozen: FrozenContract, decision: Decision): void {
+    this.db.exec('BEGIN')
+    try {
+      this.saveContract(frozen)
+      this.recordDecision(decision)
+      this.db.exec('COMMIT')
+    } catch (error) {
+      this.db.exec('ROLLBACK')
+      throw error
+    }
+  }
+
   decisionsFor(targetId: string): Decision[] {
     const rows = this.db.prepare('SELECT * FROM decisions WHERE target_id = ? ORDER BY at').all(targetId) as Record<string, unknown>[]
     return rows.map(toDecision)
   }
 
-  /** Stores one proposal batch whole: the candidates, the critiques and the rejections travel together. */
+  /** Updates a stored batch: the candidates, the critiques and the rejections travel together. */
   saveProposalBatch(batch: Batch): void {
     this.db.prepare(
       'INSERT OR REPLACE INTO batches (id, json, status, created_at) VALUES (?, ?, ?, ?)',
+    ).run(batch.id, JSON.stringify(batch), batch.status, assertIsoTimestamp(batch.createdAt))
+  }
+
+  /** Inserts a new batch. A resubmitted id is refused here, not overwritten: the earlier critiques are the record. */
+  createProposalBatch(batch: Batch): void {
+    this.db.prepare(
+      'INSERT INTO batches (id, json, status, created_at) VALUES (?, ?, ?, ?)',
     ).run(batch.id, JSON.stringify(batch), batch.status, assertIsoTimestamp(batch.createdAt))
   }
 

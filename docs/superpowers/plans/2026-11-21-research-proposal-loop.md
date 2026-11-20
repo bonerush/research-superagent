@@ -295,3 +295,13 @@ it('runs a direction to a signed contract', () => {
 **R4 — `src/app/tools/research.ts` 不在运行时 import `./tool.ts`。** 那条链是 tool → resources → executor/dsh → assessment → tool，本模块的加入改变了求值顺序，使 `assessment.ts` 里的 `AcknowledgementSchema` 在被使用前还是 undefined。改用本地 `make` 身份函数，只以 `import type` 取类型。代价：多三行重复的形状定义。
 
 **R5 — 批次整存一行 JSON。** 候选、批判与拒绝一起走，查询只按状态与创建时间排序；跨批次的分析留给议程，不在这一层做。
+
+**R6 — 主会话字符预算从 59,000 提到 61,500。** 五个研究工具序列化后 3,281 字符（压缩前 4,696，已去掉逐字段说明与重复描述），工具面总量 60,923。要压回 59,000 以内就得砍掉一个工具或把候选 schema 压到 1,300 字符以下，闭环就没有入口。代价：主会话提示永久变大 1.9K。
+
+**R7 — 批次至少两份候选。** 计划写的是 1–5；一份不构成选择，「人认得出但说不清」的前提也就没了。
+
+**R8 — `research_sign` 改为从被选候选派生契约。** 参数只有 batchId、candidateId、requirement、version、by；判据与预算来自存储里的候选，agent 不再能自带一份契约。批次记录 `pickedCandidateId` 与 `contractVersion`。
+
+**R9 — 仓库层拆 `createProposalBatch` 与 `saveProposalBatch`，签发走 `signContract` 事务。** 重提同 id 会被主键拒绝，不会覆盖已评审的批判；契约与决定要么都写，要么都不写。
+
+**R10 — `draftContract` 要求停止条件非空。** topic 候选只给预测、不给证伪时拒绝起草，而不是产出一份空停止条件的契约。

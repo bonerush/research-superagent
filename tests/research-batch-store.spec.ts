@@ -39,4 +39,9 @@ describe('proposal batches', () => {
     expect(repo.listProposalBatches().map(b => b.id)).toEqual(['B-2', 'B-1'])
     expect(repo.listProposalBatches('reviewed').map(b => b.id)).toEqual(['B-2'])
   })
+  it('refuses a resubmitted batch id', () => {
+    const repo = open()
+    repo.createProposalBatch(batch())
+    expect(() => repo.createProposalBatch(batch())).toThrow(/UNIQUE|constraint/)
+  })
 })

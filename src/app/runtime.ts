@@ -170,6 +170,7 @@ export class Runtime extends Service implements SourceHost {
       this.ready = this.initialize()
     } catch (error) {
       // Release the database and state lock if initialization fails so an in-process restart can reacquire them.
+      try { this.research?.close() } catch { /* the research database is auxiliary; a closing error must not mask the original. */ }
       try { opened?.close() } finally { release() }
       throw error
     }

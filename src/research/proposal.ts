@@ -57,6 +57,8 @@ export interface Batch {
   candidates: Candidate[]
   critiques: Critique[]
   rejections: Rejection[]
+  /** Set once a person chose; the only candidate a contract may be drafted from. */
+  pickedCandidateId?: string
   contractVersion?: number
   createdAt: string
   status: BatchStatus
@@ -78,9 +80,9 @@ export function validateCandidate(candidate: Candidate): void {
   }
 }
 
-/** Refuses a batch that is empty, too large, or carries a duplicate id. */
+/** Refuses a batch too small to be a choice, too large to judge, or carrying a duplicate id. */
 export function validateBatch(batch: Batch): void {
-  if (batch.candidates.length < 1) throw new Error('a batch needs at least one candidate')
+  if (batch.candidates.length < 2) throw new Error('a batch needs at least two candidates to be a choice')
   if (batch.candidates.length > 5) throw new Error('a batch holds at most five candidates')
   const seen = new Set<string>()
   for (const candidate of batch.candidates) {

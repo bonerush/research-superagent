@@ -9,7 +9,7 @@ const cand = (over: Partial<Candidate> = {}): Candidate => ({
 })
 
 const batch = (over: Partial<Batch> = {}): Batch => ({
-  id: 'B-1', direction: '多模态检索', candidates: [cand()], critiques: [],
+  id: 'B-1', direction: '多模态检索', candidates: [cand(), cand({ id: 'P-1-2' })], critiques: [],
   rejections: [], createdAt: '2026-11-21T00:00:00.000Z', status: 'draft', ...over,
 })
 
@@ -29,11 +29,11 @@ describe('validateCandidate', () => {
 })
 
 describe('validateBatch', () => {
-  it('accepts one to five candidates', () => {
+  it('accepts two to five candidates', () => {
     expect(() => validateBatch(batch())).not.toThrow()
   })
   it('rejects an empty batch', () => {
-    expect(() => validateBatch(batch({ candidates: [] }))).toThrow(/at least one/)
+    expect(() => validateBatch(batch({ candidates: [] }))).toThrow(/at least two/)
   })
   it('rejects more than five candidates', () => {
     const six = [1, 2, 3, 4, 5, 6].map(n => cand({ id: 'P-1-' + String(n) }))

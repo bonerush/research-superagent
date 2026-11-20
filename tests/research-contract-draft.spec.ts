@@ -29,4 +29,8 @@ describe('draftContract', () => {
     const vague: Candidate = { ...candidate, prediction: undefined, test: undefined, precision: 'topic' }
     expect(() => draftContract(vague, 'r', 1)).toThrow(/criterion/)
   })
+  it('refuses a topic candidate that states no stopping condition', () => {
+    const topic: Candidate = { ...candidate, prediction: 'p', test: undefined, precision: 'topic' }
+    expect(() => draftContract(topic, 'r', 1)).toThrow(/stop condition/)
+  })
 })

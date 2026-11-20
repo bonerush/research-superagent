@@ -4,12 +4,12 @@ import { assertIsoTimestamp, type Decision } from './model.ts'
 import type { Batch } from './proposal.ts'
 
 /**
- * Records a person picking one candidate. The batch must be ready and the candidate must have survived the critic:
- * a dropped candidate is refused rather than quietly resurrected.
+ * Records a person picking one candidate. The batch must be reviewed and the candidate must have survived the critic:
+ * a dropped candidate is refused rather than quietly resurrected, and a batch already decided cannot be decided again.
  * The others are kept as rejections with the critic reason, which is the only taste signal the next batch can learn from.
  */
 export function pick(batch: Batch, candidateId: string, by: string, at: string): { batch: Batch; decision: Decision } {
-  if (!presentable(batch)) throw new Error('the batch is not ready to be picked from')
+  if (batch.status !== 'reviewed' || !presentable(batch)) throw new Error('the batch is not ready to be picked from')
   if (!survivors(batch).some(candidate => candidate.id === candidateId)) {
     const reason = batch.critiques.find(entry => entry.candidateId === candidateId)?.reason ?? 'unknown candidate'
     throw new Error(`the critic dropped ${candidateId}: ${reason}`)
@@ -26,5 +26,5 @@ export function pick(batch: Batch, candidateId: string, by: string, at: string):
     by,
     at: assertIsoTimestamp(at),
   }
-  return { batch: { ...batch, status: 'picked', rejections }, decision }
+  return { batch: { ...batch, status: 'picked', pickedCandidateId: candidateId, rejections }, decision }
 }

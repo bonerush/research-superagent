@@ -22,7 +22,7 @@ describe('saveBatch', () => {
     expect(saved.critiques).toEqual([])
   })
   it('refuses a batch that fails validation', () => {
-    expect(() => saveBatch({ ...raw(), candidates: [] }, AT)).toThrow(/at least one/)
+    expect(() => saveBatch({ ...raw(), candidates: [] }, AT)).toThrow(/at least two/)
   })
 })
 
