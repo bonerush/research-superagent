@@ -5,3 +5,4 @@ lib/
 coverage/
 .obsidian-mem
 
+*.orig
