@@ -9,7 +9,7 @@ export type Verdict = 'supported' | 'refuted' | 'inconclusive'
 /** Where an attempt sits: waiting means it stopped for a person, usually the budget cap. */
 export type AttemptStatus = 'opened' | 'running' | 'waiting' | 'concluded' | 'abandoned'
 /** The only decisions a person can make. Agents may propose, never write one. */
-export type DecisionKind = 'sign_contract' | 'kill_direction' | 'accept_result'
+export type DecisionKind = 'sign_contract' | 'pick_proposal' | 'kill_direction' | 'accept_result'
 
 /** One question the lab is working on, at one precision. */
 export interface Question {

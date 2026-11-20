@@ -38,7 +38,7 @@ const toAttempt = (row: Record<string, unknown>): Attempt => ({
   ...(row.verdict == null ? {} : { verdict: row.verdict as Attempt['verdict'] }),
 })
 
-const DECISION_KINDS = ['sign_contract', 'kill_direction', 'accept_result'] as const
+const DECISION_KINDS = ['sign_contract', 'pick_proposal', 'kill_direction', 'accept_result'] as const
 
 const toDecision = (row: Record<string, unknown>): Decision => ({
   id: String(row.id),
