@@ -290,3 +290,14 @@ it('runs a signed contract to a concluded attempt with its cost', async () => {
 - Spec 覆盖：§5.3 执行阶段、§6.1 控制面、§6.3 双重关机（第二层）、§6.4 账本由本计划承担；§6.1 的第一层（脚本自杀）属于实验脚本，留给协议文本。
 - 五条 Review Focus 都落在具体任务：1 → Task 2；2 → Task 3；3 → Task 6；4 → Task 8；5 → Task 5。
 - Task 1 先做，是因为再加四个工具会再次顶爆主会话预算；合并后新增动作只增加联合分支，不再增加工具条数。
+## Rulings（执行时的偏离与决定）
+
+**R1 — 五个工具合并成一个 `research`，动作用判别联合。** 序列化后从 3,281 字符降到 2,684。工具面总量仍是 60,366，超过原始 59,000，所以 61,500 的预算保留；省下的部分留给后续动作，不再抬第二次。
+
+**R2 — 协议用独立的 `protocols` 表，而不是给 attempts 加列。** `CREATE TABLE IF NOT EXISTS` 对已存在的库天然幂等，省掉 `ALTER TABLE` 的容错分支，也不用在启动时读 `PRAGMA table_info`。
+
+**R3 — `openAttempt(protocol, naming)`，不是计划里的 `(protocol, at)`。** `Attempt` 没有创建时间字段，它需要的外部输入是 slug、branch 与 protocolPath。
+
+**R4 — 账本按机器分组检测重叠。** 同一台机器上的两个 run 区间重叠拒绝（会重复计费，也说明记录有误）；不同机器允许重叠。
+
+**R5 — run 的价格在入库前由 `runCost` 算好写进 `costYuan`。** 存储只做归集，不持有费率表；费率属于部署配置，改价不该触发数据迁移。
