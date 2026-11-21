@@ -71,7 +71,7 @@ export function killDirection(repo: ResearchRepo, input: { targetId: string; not
     question: question.statement,
     precision: question.precision,
     status: 'abandoned',
-    conclusion: String(decision.note ?? ''),
+    conclusion: String(decision.note ?? '').replace(/[\r\n]+/g, ' / '),
     evidence: [],
     decidedBy: input.by,
     at: input.at,

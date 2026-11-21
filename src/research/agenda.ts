@@ -85,6 +85,12 @@ export function parseAgenda(text: string): AgendaEntry[] {
 
 /** The block one entry renders to; parseAgenda reads it back unchanged. */
 export function renderEntry(entry: AgendaEntry): string {
+  for (const [name, value] of [
+    ['id', entry.id], ['question', entry.question], ['conclusion', entry.conclusion],
+    ['decidedBy', entry.decidedBy], ['at', entry.at],
+  ] as const) {
+    if (/[\r\n]/.test(value)) throw new Error(`agenda: ${name} must be one line`)
+  }
   return [
     `### ${entry.id}`,
     `- question: ${entry.question}`,

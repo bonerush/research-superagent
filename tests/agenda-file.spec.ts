@@ -41,6 +41,10 @@ describe('readAgenda', () => {
   it('returns nothing for a file that does not exist yet', () => {
     expect(readAgenda(temp())).toEqual([])
   })
+  it('refuses a conclusion that is not one line', () => {
+    const path = temp()
+    expect(() => appendAgenda(path, { ...entry('Q-1'), conclusion: 'first' + String.fromCharCode(10) + 'second' })).toThrow(/one line/)
+  })
   it('surfaces a malformed file as an error', () => {
     const path = temp()
     writeFileSync(path, '# Agenda' + String.fromCharCode(10) + '- question: x' + String.fromCharCode(10))
