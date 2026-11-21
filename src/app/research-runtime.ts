@@ -3,8 +3,18 @@ import { DatabaseSync } from 'node:sqlite'
 import { join } from 'node:path'
 import type { Activity } from '../research/machine.ts'
 import { httpMachinePort, type MachinePort } from './machine-port.ts'
+import { commandNotifier, runNotifyCommand, type Notifier } from './notifier.ts'
 import { supervise } from './machine-supervisor.ts'
 import { ResearchRepo, createResearchSchema } from './store-research.ts'
+
+/**
+ * The notifier, when the operator configured a command: research events outside the panel land wherever that command
+ * sends them. Without it the panel is the only surface, rather than a notifier that silently does nothing.
+ */
+export function notifierFromEnv(env: NodeJS.ProcessEnv = process.env): Notifier | undefined {
+  const command = env.RESEARCH_NOTIFY_COMMAND
+  return command ? commandNotifier(command, runNotifyCommand) : undefined
+}
 
 /** The open research store and the way to close it. */
 export interface ResearchRuntime {

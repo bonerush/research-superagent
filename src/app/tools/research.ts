@@ -2,7 +2,7 @@
 import { z } from 'zod'
 import { conclude, openAttempt, startAttempt, waitAttempt } from '../../research/attempt.ts'
 import { critique, presentable, saveBatch } from '../../research/batch.ts'
-import { appendAgenda } from '../agenda-file.ts'
+import { appendAgenda, readAgenda } from '../agenda-file.ts'
 import { accept, kill } from '../../research/decide.ts'
 import { draftContract } from '../../research/draft.ts'
 import type { AgendaEntry } from '../../research/agenda.ts'
@@ -13,6 +13,7 @@ import { draftReport } from '../../research/report.ts'
 import { checkReproduction, settle, type Reproducibility } from '../../research/reproduction.ts'
 import { sign } from '../../research/sign.ts'
 import type { MachinePort } from '../machine-port.ts'
+import type { Notifier } from '../notifier.ts'
 import type { ResearchRepo } from '../store-research.ts'
 import type { Tool } from './tool.ts'
 
@@ -44,6 +45,7 @@ const Action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('evidence'), attemptId: z.string().min(1), branch: z.string().min(1), commit: z.string().min(1), image: z.string().min(1), machineType: z.string().min(1), dataHash: z.string().min(1), command: z.string().min(1), metrics: z.record(z.string(), z.string()), reproduce: z.string().min(1), envFile: z.string().optional(), logs: z.array(z.string()).optional(), artifacts: z.array(z.string()).optional(), verification: VerificationSchema }),
   z.object({ action: z.literal('decide'), op: z.enum(['accept', 'kill']), attemptId: z.string().optional(), targetId: z.string().optional(), note: z.string().optional(), objection: z.string().optional(), by: z.string().min(1) }),
   z.object({ action: z.literal('machine'), op: z.enum(['status', 'on', 'off', 'balance']) }),
+  z.object({ action: z.literal('agenda') }),
   z.object({ action: z.literal('status'), batchId: z.string().optional() }),
 ])
 
@@ -53,11 +55,13 @@ export interface ResearchToolDeps {
   machine?: MachinePort
   /** The agenda file; when set, an accepted or killed decision is written there as a conclusion. */
   agendaPath?: string
+  /** Where a waiting decision is announced outside the panel; absent means the panel is the only surface. */
+  notify?: Notifier
 }
 
 /** The one research tool: the loop from a batch to an accepted report. */
 export function researchTool(deps: ResearchToolDeps): Tool {
-  const { repo, agendaPath } = deps
+  const { repo, agendaPath, notify } = deps
   return make({
     name: 'research',
     description: 'The research ledger: propose, critique, pick and sign build the contract; protocol, attempt and run execute it; evidence, decide and machine converge it; status reads. pick, sign and decide record what the person decided and may only be called after they said it.',
@@ -74,7 +78,9 @@ export function researchTool(deps: ResearchToolDeps): Tool {
         if (!batch) throw new Error(`unknown batch ${args.batchId}`)
         const settled = critique(batch, args.reviews)
         repo.saveProposalBatch(settled)
-        return { status: settled.status, presentable: presentable(settled) }
+        const ready = presentable(settled)
+        if (ready && notify) await notify.notify(`batch ${settled.id} has ${settled.candidates.length} candidates waiting for a pick`)
+        return { status: settled.status, presentable: ready }
       }
       if (args.action === 'pick') {
         const batch = repo.getProposalBatch(args.batchId)
@@ -147,6 +153,7 @@ export function researchTool(deps: ResearchToolDeps): Tool {
         const text = draftReport({ attempt: settled, contract, evidence: pkg, outcome, costYuan: repo.costOfAttempt(attempt.id),
           ...(verificationYuan ? { verificationYuan } : {}) })
         repo.saveReport(attempt.id, text)
+        if (notify) await notify.notify(`attempt ${attempt.id} concluded ${String(settled.verdict)}; a rerun was ${outcome}; the report is ready`)
         return { verdict: settled.verdict, outcome, report: text }
       }
       if (args.action === 'decide') {
@@ -199,6 +206,7 @@ export function researchTool(deps: ResearchToolDeps): Tool {
         repo.clearMachineBootedAt(now())
         return { powered: 'off' }
       }
+      if (args.action === 'agenda') return { entries: agendaPath ? readAgenda(agendaPath) : [] }
       return args.batchId
         ? { batch: repo.getProposalBatch(args.batchId) ?? null }
         : { batches: repo.listProposalBatches().map(batch => ({ id: batch.id, status: batch.status, candidates: batch.candidates.length })) }

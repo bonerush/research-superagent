@@ -23,6 +23,10 @@ const open = (): ResearchRepo => {
   return new ResearchRepo(db)
 }
 const runTool = (tool: ReturnType<typeof researchTool>, args: unknown) => tool.execute(args as never, signal)
+const recorder = (): { notices: string[]; notify: (text: string) => Promise<void> } => {
+  const notices: string[] = []
+  return { notices, notify: async (text: string) => { notices.push(text) } }
+}
 const verification = (over: Record<string, unknown> = {}) => ({
   commit: 'abc', dataHash: 'sha256:1', command: 'python train.py', metrics: { c1: '0.71' }, ...over,
 })
@@ -32,11 +36,11 @@ const evidenceArgs = (attemptId: string, over: Record<string, unknown> = {}) => 
   verification: verification(), ...over,
 })
 
-const concluded = async (): Promise<{ store: ResearchRepo; tool: ReturnType<typeof researchTool>; agenda: string }> => {
+const concluded = async (notify?: (text: string) => Promise<void>): Promise<{ store: ResearchRepo; tool: ReturnType<typeof researchTool>; agenda: string }> => {
   const store = open()
   sign(store, contract, 'me', AT)
   const agenda = join(mkdtempSync(join(tmpdir(), 'agenda-')), 'agenda.md')
-  const tool = researchTool({ repo: store, agendaPath: agenda })
+  const tool = researchTool({ repo: store, agendaPath: agenda, ...(notify ? { notify: { notify } } : {}) })
   await runTool(tool, { action: 'protocol', attemptId: 'A-1', questionId: 'Q-1', contractVersion: 1, commands: ['python train.py'], measurements: [{ criterionId: 'c1', from: 'metrics.json' }], expected: 'e', stopCondition: 's', machineHours: 1 })
   await runTool(tool, { action: 'attempt', op: 'open', attemptId: 'A-1', slug: 's', branch: 'b', protocolPath: 'p' })
   await runTool(tool, { action: 'attempt', op: 'start', attemptId: 'A-1' })
@@ -45,15 +49,33 @@ const concluded = async (): Promise<{ store: ResearchRepo; tool: ReturnType<type
   return { store, tool, agenda }
 }
 
+const cand = (n: number) => ({
+  id: 'P-1-' + String(n), question: 'q', precision: 'topic' as const, why: 'w',
+  priors: [{ work: 'A', delta: 'a' }, { work: 'B', delta: 'b' }, { work: 'C', delta: 'c' }],
+  feasibility: { data: 'd', hardware: 'h', days: 1, yuan: 10 }, protocolDraft: 'p', risk: 'r',
+})
+
 describe('the convergence loop', () => {
-  it('turns a concluded attempt into an accepted report', async () => {
-    const { store, tool, agenda } = await concluded()
+  it('notifies when a batch is ready to pick', async () => {
+    const { notices, notify } = recorder()
+    const store = open()
+    const tool = researchTool({ repo: store, notify: { notify } })
+    await runTool(tool, { action: 'propose', id: 'B-1', direction: 'd', candidates: [cand(1), cand(2)] })
+    await runTool(tool, { action: 'critique', batchId: 'B-1', reviews: [{ candidateId: 'P-1-1', verdict: 'keep', reason: 'r' }, { candidateId: 'P-1-2', verdict: 'drop', reason: 'r' }] })
+    expect(notices.join(' ')).toContain('waiting for a pick')
+  })
+  it('turns a concluded attempt into an accepted report and notifies the person', async () => {
+    const { notices, notify } = recorder()
+    const { store, tool, agenda } = await concluded(notify)
     const out = await runTool(tool, evidenceArgs('A-1')) as { verdict: string; outcome: string }
     expect(out.outcome).toBe('reproducible')
     expect(store.getReport('A-1')).toContain('reproducible')
     await runTool(tool, { action: 'decide', op: 'accept', attemptId: 'A-1', by: 'me' })
     expect(store.decisionsFor('A-1').map(d => d.kind)).toContain('accept_result')
     expect(readFileSync(agenda, 'utf8')).toContain('A-1')
+    expect(notices.join(' ')).toContain('the report is ready')
+    const listed = await runTool(tool, { action: 'agenda' }) as { entries: { id: string }[] }
+    expect(listed.entries.map(entry => entry.id)).toEqual(['A-1'])
   })
 
   it('refuses to call a different commit a reproduction', async () => {
