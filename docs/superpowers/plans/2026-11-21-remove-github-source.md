@@ -1,6 +1,6 @@
 # 删除 GitHub 监听 实施计划
 
-> **状态：未执行。** 等操作者决定后再开工；本文件只记录怎么做。
+> **状态：不执行。** 操作者 2026-11-21 决定保留旧域（GitHub 仓库作云存储、git 用科研分支管理）；本文件只作存档，供将来真的要删时参考。
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use subagent-driven-development (recommended) or executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 
