@@ -14,6 +14,7 @@
 | `RESEARCH_MACHINE_ON_URL` | 开机端点 |
 | `RESEARCH_MACHINE_OFF_URL` | 关机端点 |
 | `RESEARCH_MACHINE_BALANCE_URL` | 查余额端点 |
+| `RESEARCH_MACHINE_DIALECT` | 可选：`autodl` 时按 AutoDL 的形状发请求（目前唯一的内置方言） |
 | `RESEARCH_NOTIFY_COMMAND` | 可选：通知命令。待挑提案、报告就绪时，插件把一行消息写到它的标准输入 |
 
 四个端点由你按厂商文档填，插件只负责发 `POST`、带 `authorization` 头与 `{ instance_id }` 体，并按状态码判成败。五个变量缺一个，机器动作就会明确报「no machine is configured」，不会假装可用。
