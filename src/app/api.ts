@@ -22,6 +22,9 @@ export interface Api {
   'GET state': { response: StateView }
   'GET overview': { response: OverviewView }
   'GET research': { response: ResearchOverview }
+  'POST research/pick': { body: { batchId: string; candidateId: string; by: string }; response: { picked: string; rejected: number } }
+  'POST research/sign': { body: { batchId: string; candidateId: string; requirement: string; version: number; by: string }; response: { version: number; hash: string } }
+  'POST research/decide': { body: { op: 'accept' | 'kill'; attemptId?: string; targetId?: string; note?: string; objection?: string; by: string }; response: { decided: true; agenda: boolean } }
   'GET search': { query: { q: string }; response: SearchView }
   'GET sources': { response: SourceStatusView[] }
   'GET settings': { response: SettingsView }

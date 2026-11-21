@@ -2,16 +2,13 @@
 import { z } from 'zod'
 import { conclude, openAttempt, startAttempt, waitAttempt } from '../../research/attempt.ts'
 import { critique, presentable, saveBatch } from '../../research/batch.ts'
-import { appendAgenda, readAgenda } from '../agenda-file.ts'
-import { accept, kill } from '../../research/decide.ts'
-import { draftContract } from '../../research/draft.ts'
+import { readAgenda } from '../agenda-file.ts'
+import { acceptAttempt, killDirection, pickCandidate, signBatch } from '../research-actions.ts'
 import type { AgendaEntry } from '../../research/agenda.ts'
 import type { EvidencePackage } from '../../research/evidence.ts'
-import { pick } from '../../research/pick.ts'
 import type { Batch, Candidate } from '../../research/proposal.ts'
 import { draftReport } from '../../research/report.ts'
 import { checkReproduction, settle, type Reproducibility } from '../../research/reproduction.ts'
-import { sign } from '../../research/sign.ts'
 import type { MachinePort } from '../machine-port.ts'
 import type { Notifier } from '../notifier.ts'
 import type { ResearchRepo } from '../store-research.ts'
@@ -83,22 +80,10 @@ export function researchTool(deps: ResearchToolDeps): Tool {
         return { status: settled.status, presentable: ready }
       }
       if (args.action === 'pick') {
-        const batch = repo.getProposalBatch(args.batchId)
-        if (!batch) throw new Error(`unknown batch ${args.batchId}`)
-        const result = pick(batch, args.candidateId, args.by, now())
-        repo.saveProposalBatch(result.batch)
-        repo.recordDecision(result.decision)
-        return { picked: args.candidateId, rejected: result.batch.rejections.length }
+        return pickCandidate(repo, { batchId: args.batchId, candidateId: args.candidateId, by: args.by, at: now() })
       }
       if (args.action === 'sign') {
-        const batch = repo.getProposalBatch(args.batchId)
-        if (!batch) throw new Error(`unknown batch ${args.batchId}`)
-        if (batch.pickedCandidateId !== args.candidateId) throw new Error(`batch ${batch.id} picked ${String(batch.pickedCandidateId)}`)
-        const candidate = batch.candidates.find(entry => entry.id === args.candidateId)
-        if (!candidate) throw new Error(`unknown candidate ${args.candidateId}`)
-        const result = sign(repo, draftContract(candidate, args.requirement, args.version), args.by, now())
-        repo.saveProposalBatch({ ...batch, contractVersion: result.frozen.version })
-        return { version: result.frozen.version, hash: result.frozen.hash }
+        return signBatch(repo, { batchId: args.batchId, candidateId: args.candidateId, requirement: args.requirement, version: args.version, by: args.by, at: now() })
       }
       if (args.action === 'protocol') {
         repo.saveProtocol({ ...args, registeredAt: now() })
@@ -159,42 +144,14 @@ export function researchTool(deps: ResearchToolDeps): Tool {
       if (args.action === 'decide') {
         if (args.op === 'accept') {
           if (!args.attemptId) throw new Error('accept needs an attempt')
-          const attempt = repo.getAttempt(args.attemptId)
-          if (!attempt) throw new Error(`unknown attempt ${args.attemptId}`)
-          const evidence = repo.getEvidence(args.attemptId)
-          if (!evidence) throw new Error(`attempt ${args.attemptId} has no evidence`)
-          if (!repo.getReport(args.attemptId)) throw new Error(`attempt ${args.attemptId} has no report`)
-          const contract = repo.getContract(attempt.contractVersion)
-          if (!contract) throw new Error(`attempt ${args.attemptId} has no signed contract`)
-          repo.recordDecision(accept(attempt, evidence.outcome as Reproducibility, args.by, now()))
-          const written = agendaPath !== undefined && appendAgenda(agendaPath, {
-            id: attempt.id,
-            question: contract.goal,
-            precision: 'topic',
-            status: 'answered',
-            conclusion: `${String(attempt.verdict)} after a reproduced rerun: ${contract.requirement}` ,
-            evidence: repo.runsOf(attempt.id).map(run => run.id),
-            decidedBy: args.by,
-            at: now(),
-          })
-          return { accepted: args.attemptId, agenda_written: written }
+          const result = acceptAttempt(repo, { attemptId: args.attemptId, by: args.by, at: now(),
+            ...(agendaPath !== undefined ? { agendaPath } : {}) })
+          return { accepted: args.attemptId, agenda_written: result.agenda }
         }
         if (!args.targetId) throw new Error('kill needs a target')
-        const question = repo.getQuestion(args.targetId)
-        if (!question) throw new Error(`unknown question ${args.targetId}`)
-        const decision = kill(args.targetId, args.note ?? '', args.objection ?? '', args.by, now())
-        repo.recordDecision(decision)
-        const written = agendaPath !== undefined && appendAgenda(agendaPath, {
-          id: args.targetId,
-          question: question.statement,
-          precision: question.precision,
-          status: 'abandoned',
-          conclusion: String(decision.note ?? ''),
-          evidence: [],
-          decidedBy: args.by,
-          at: now(),
-        })
-        return { killed: args.targetId, agenda_written: written }
+        const result = killDirection(repo, { targetId: args.targetId, note: args.note ?? '', objection: args.objection ?? '', by: args.by, at: now(),
+          ...(agendaPath !== undefined ? { agendaPath } : {}) })
+        return { killed: args.targetId, agenda_written: result.agenda }
       }
       if (args.action === 'machine') {
         const port = deps.machine
