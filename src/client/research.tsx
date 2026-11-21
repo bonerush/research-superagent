@@ -1,16 +1,22 @@
-/** Research page: what the research loop waits for a person to do. */
+/** Research page: what the research loop waits for a person to do, and the two decisions a person can take here. */
 import type { ReactNode } from 'react'
 import { usePoll } from './api.ts'
-import { usePanel } from './provider.tsx'
+import { Button } from './controls.tsx'
+import { useAction, usePanel, usePanelData } from './provider.tsx'
 import { LoadState, Section } from './widgets.tsx'
 
 /**
- * One screen with four lists: the contracts to sign, the batches to pick from, the attempts to judge, and the reports
- * drawn for them. An empty list says so plainly instead of hiding the section, so a quiet week looks quiet.
+ * Four lists: the contracts to sign, the batches to pick from, the attempts to judge, and the reports drawn for them.
+ * Picking a candidate and accepting a result need nothing but a click; signing and killing need words, so they stay in
+ * the conversation and this page only points at them.
  */
 export function ResearchPage(): ReactNode {
   const { t, call } = usePanel()
-  const { data, error } = usePoll(() => call('GET research'), [])
+  const { data, error, reload } = usePoll(() => call('GET research'), [])
+  const { state } = usePanelData()
+  const by = state?.masterId ?? 'panel'
+  const pick = useAction((batchId: string, candidateId: string) => call('POST research/pick', { body: { batchId, candidateId, by } }), { reload })
+  const accept = useAction((attemptId: string) => call('POST research/decide', { body: { op: 'accept', attemptId, by } }), { reload })
   if (!data) return <LoadState error={error} loading />
   const empty = <p className="dt-hint">{t('researchNone')}</p>
   return <div className="dt-column">
@@ -24,7 +30,11 @@ export function ResearchPage(): ReactNode {
     <Section title={t('researchBatches')} count={data.batches.length}>
       {data.batches.length === 0 ? empty : <ul className="dt-list">
         {data.batches.map(batch => <li key={batch.id} className="dt-row">
-          <span className="dt-mono">{batch.id}</span> {batch.direction} · {batch.candidates}
+          <span className="dt-mono">{batch.id}</span> {batch.direction}
+          <div className="dt-row-meta dt-row-buttons">
+            {batch.candidates.map(candidate => <Button key={candidate.id} variant="outline" size="sm"
+              onClick={() => void pick.run(batch.id, candidate.id)}>{candidate.id}</Button>)}
+          </div>
         </li>)}
       </ul>}
     </Section>
@@ -32,6 +42,9 @@ export function ResearchPage(): ReactNode {
       {data.attempts.length === 0 ? empty : <ul className="dt-list">
         {data.attempts.map(attempt => <li key={attempt.id} className="dt-row">
           <span className="dt-mono">{attempt.id}</span> · {attempt.verdict} · {attempt.costYuan}
+          <div className="dt-row-meta dt-row-buttons">
+            <Button variant="primary" size="sm"               onClick={() => void accept.run(attempt.id)}>{t('researchAccept')}</Button>
+          </div>
         </li>)}
       </ul>}
     </Section>

@@ -313,6 +313,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/client/research.tsx` | The panel's research tab, one list per thing that waits for a person |
 | `src/app/agenda-file.ts` | `readAgenda` and `appendAgenda`: the conclusions file beside the research database, written once per decision |
 | `src/app/notifier.ts` | `commandNotifier` and `runNotifyCommand`: the operator's command, message on stdin, so no vendor syntax lives here |
+| `src/app/research-actions.ts` | `pickCandidate`, `signBatch`, `acceptAttempt` and `killDirection`: the one implementation the Session tool and the panel routes both call |
 | `src/app/research-runtime.ts` | `openResearch`: the research database in its own file, created on start and closed on shutdown |
 | `src/app/tools/research.ts` | The main Session's one research tool, a discriminated union over propose, critique, pick, sign, protocol, attempt, run, evidence, decide, machine and status |
 | `src/research/evidence.ts` | The evidence package and `validateEvidence`: every contract criterion must carry a value before the package is stored |
@@ -481,6 +482,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/panel-research.spec.tsx` | The research tab renders its four sections, each empty when nothing waits |
 | `tests/agenda-file.spec.ts` | The agenda file creates itself, appends, skips a duplicate id and refuses a malformed file |
 | `tests/notifier.spec.ts` | A notifier runs the configured command, passes the text on stdin, and fails when the command does |
+| `tests/research-actions.spec.ts` | Picking then signing freezes a contract; acceptance needs evidence and a report; a kill needs a known question |
 | `tests/delivery.spec.ts` | `AgentDelivery` |
 | `tests/retry-health.spec.ts`, `tests/role-models.spec.ts` | Model budget retries, and the models of the two roles |
 | `tests/runtime.spec.ts` | The whole application on a simulated DeepSeek Harness host, through tools and HTTP |

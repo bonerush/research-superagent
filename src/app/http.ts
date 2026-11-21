@@ -25,6 +25,7 @@ import type { Variable } from './execution-environment.ts'
 import { policyHistory } from './settings-history.ts'
 import { overview } from './views/overview.ts'
 import { researchOverview } from './views/research.ts'
+import { acceptAttempt, killDirection, pickCandidate, signBatch } from './research-actions.ts'
 import { settingsView } from './views/settings.ts'
 import { sourcesStatus, type SetupState } from './views/sources.ts'
 import { decisionList, search, threadDetail, threadList } from './views/threads.ts'
@@ -34,6 +35,8 @@ export interface HttpHost {
   readonly store: Store
   /** The research store, read by the research tab. */
   readonly research: ResearchRepo
+  /** The agenda file a decision writes its conclusion into. */
+  readonly agendaPath: string
   /** Feishu message links resolved since startup, used by search to match AppLink URLs. */
   readonly sourceLinks: Pick<TextCache, 'entries'>
   readonly sources: SourceRegistry
@@ -151,6 +154,10 @@ const PromptsQuery = z.object({ revision: count.optional(), offset: count.defaul
 const SourceBlock = z.templateLiteral(['source:', z.string().regex(/^[a-z][a-z0-9-]*$/)])
 const SettingsBlockSchema = z.union([z.enum(['policy', 'eval', 'executor']), SourceBlock])
 const SaveRequest = z.object({ value: z.unknown(), revision: z.number().int().nonnegative() })
+const PickBody = z.object({ batchId: z.string().min(1), candidateId: z.string().min(1), by: z.string().min(1) })
+const SignBody = PickBody.extend({ requirement: z.string().min(1), version: z.number().int().positive() })
+const DecideBody = z.object({ op: z.enum(['accept', 'kill']), attemptId: z.string().optional(), targetId: z.string().optional(),
+  note: z.string().optional(), objection: z.string().optional(), by: z.string().min(1) })
 
 function routes(runtime: HttpHost): Routes {
   const { store } = runtime
@@ -161,6 +168,21 @@ function routes(runtime: HttpHost): Routes {
     'GET overview': () => overview(views(runtime), runtime.health, policyVersion(store.settings()),
       executorLoad(store, runtime.executor.activeCount()), runtime.setupProblem ?? runtime.feishuProblem),
     'GET research': () => researchOverview(runtime.research),
+    'POST research/pick': async ({ body }) => pickCandidate(runtime.research, { ...PickBody.parse(await body()), at: new Date().toISOString() }),
+    'POST research/sign': async ({ body }) => signBatch(runtime.research, { ...SignBody.parse(await body()), at: new Date().toISOString() }),
+    'POST research/decide': async ({ body }) => {
+      const input = DecideBody.parse(await body())
+      const at = new Date().toISOString()
+      const agendaPath = runtime.agendaPath
+      if (input.op === 'accept') {
+        if (!input.attemptId) throw new RouteError(400, 'accept needs an attemptId')
+        const result = acceptAttempt(runtime.research, { attemptId: input.attemptId, by: input.by, at, agendaPath })
+        return { decided: true as const, agenda: result.agenda }
+      }
+      if (!input.targetId) throw new RouteError(400, 'kill needs a targetId')
+      const result = killDirection(runtime.research, { targetId: input.targetId, note: input.note ?? '', objection: input.objection ?? '', by: input.by, at, agendaPath })
+      return { decided: true as const, agenda: result.agenda }
+    },
     'GET search': ({ query }) => search(views(runtime), query.q ?? '', runtime.sourceLinks),
     'GET sources': () => sourcesStatus(views(runtime), runtime.health, setupState(runtime)),
     'GET settings': () => settingsView(store, runtime.sources, runtime.health, setupState(runtime), runtime.machine.stateDir),

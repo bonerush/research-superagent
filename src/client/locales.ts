@@ -121,6 +121,7 @@ const TEXT = {
   'researchAttempts': ['待判定尝试', 'Attempts to judge'],
   'researchReports': ['报告', 'Reports'],
   'researchNone': ['暂无。', 'Nothing here.'],
+  'researchAccept': ['收', 'Accept'],
   'researchContracts': ['待签契约', 'Contracts to sign'],
   // Overview
   sourceError: ['{source} 来源异常', '{source} Source failing'],

@@ -294,6 +294,9 @@ const ROUTES: { [K in keyof Api]: Route<K> } = {
   'GET state': { answer: stateView },
   'GET overview': { answer: overviewView },
   'GET research': { answer: () => ({ contracts: [], batches: [], attempts: [], reports: [] }) },
+  'POST research/pick': { body: true, answer: ({ body }) => ({ picked: String((body as { candidateId: string }).candidateId), rejected: 1 }) },
+  'POST research/sign': { body: true, answer: ({ body }) => ({ version: Number((body as { version: number }).version), hash: 'h' }) },
+  'POST research/decide': { body: true, answer: () => ({ decided: true, agenda: true }) },
   'GET search': { query: ['q'], answer: async ({ query }) => {
     const q = query.q ?? ''
     await server.searching?.(q)

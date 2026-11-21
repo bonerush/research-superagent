@@ -5,7 +5,7 @@ import type { ResearchRepo } from '../store-research.ts'
 /** One line per thing that waits for a person. */
 export interface ResearchOverview {
   contracts: { batchId: string; candidateId: string; direction: string }[]
-  batches: { id: string; direction: string; candidates: number }[]
+  batches: { id: string; direction: string; candidates: { id: string; question: string }[] }[]
   attempts: { id: string; verdict: string; costYuan: number }[]
   reports: { attemptId: string; title: string }[]
 }
@@ -26,7 +26,7 @@ export function researchOverview(repo: ResearchRepo): ResearchOverview {
       : [])
   const batches = repo.listProposalBatches('reviewed')
     .filter(presentable)
-    .map(batch => ({ id: batch.id, direction: batch.direction, candidates: batch.candidates.length }))
+    .map(batch => ({ id: batch.id, direction: batch.direction, candidates: batch.candidates.map(entry => ({ id: entry.id, question: entry.question })) }))
   const attempts = repo.listAttempts('concluded')
     .filter(attempt => {
       if (repo.decisionsFor(attempt.id).some(decision => decision.kind === 'accept_result')) return false
