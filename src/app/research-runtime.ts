@@ -45,7 +45,8 @@ export function machinePortFromEnv(env: NodeJS.ProcessEnv = process.env): Machin
   const powerOff = env.RESEARCH_MACHINE_OFF_URL
   const balance = env.RESEARCH_MACHINE_BALANCE_URL
   if (!token || !instanceId || !status || !powerOn || !powerOff || !balance) return undefined
-  return httpMachinePort({ endpoints: { status, powerOn, powerOff, balance }, token, instanceId })
+  const dialect = env.RESEARCH_MACHINE_DIALECT === 'autodl' ? 'autodl' as const : undefined
+  return httpMachinePort({ endpoints: { status, powerOn, powerOff, balance }, token, instanceId, ...(dialect ? { dialect } : {}) })
 }
 
 /** What counts as use, read from the ledger: a run still open means the machine is working. */
