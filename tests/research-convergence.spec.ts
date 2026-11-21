@@ -2,6 +2,9 @@ import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { researchTool } from '../src/app/tools/research.ts'
 import { ResearchRepo, createResearchSchema } from '../src/app/store-research.ts'
+import { mkdtempSync, readFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { sign } from '../src/research/sign.ts'
 import type { Contract, Question } from '../src/research/model.ts'
 
@@ -29,26 +32,28 @@ const evidenceArgs = (attemptId: string, over: Record<string, unknown> = {}) => 
   verification: verification(), ...over,
 })
 
-const concluded = async (): Promise<{ store: ResearchRepo; tool: ReturnType<typeof researchTool> }> => {
+const concluded = async (): Promise<{ store: ResearchRepo; tool: ReturnType<typeof researchTool>; agenda: string }> => {
   const store = open()
   sign(store, contract, 'me', AT)
-  const tool = researchTool({ repo: store })
+  const agenda = join(mkdtempSync(join(tmpdir(), 'agenda-')), 'agenda.md')
+  const tool = researchTool({ repo: store, agendaPath: agenda })
   await runTool(tool, { action: 'protocol', attemptId: 'A-1', questionId: 'Q-1', contractVersion: 1, commands: ['python train.py'], measurements: [{ criterionId: 'c1', from: 'metrics.json' }], expected: 'e', stopCondition: 's', machineHours: 1 })
   await runTool(tool, { action: 'attempt', op: 'open', attemptId: 'A-1', slug: 's', branch: 'b', protocolPath: 'p' })
   await runTool(tool, { action: 'attempt', op: 'start', attemptId: 'A-1' })
   await runTool(tool, { action: 'run', id: 'RUN-1', attemptId: 'A-1', machine: 'a100', image: 'img', commit: 'abc', command: 'c', startedAt: AT, endedAt: '2026-11-21T01:00:00.000Z', costYuan: 2 })
   await runTool(tool, { action: 'attempt', op: 'conclude', attemptId: 'A-1', verdict: 'supported', evidence: ['RUN-1'] })
-  return { store, tool }
+  return { store, tool, agenda }
 }
 
 describe('the convergence loop', () => {
   it('turns a concluded attempt into an accepted report', async () => {
-    const { store, tool } = await concluded()
+    const { store, tool, agenda } = await concluded()
     const out = await runTool(tool, evidenceArgs('A-1')) as { verdict: string; outcome: string }
     expect(out.outcome).toBe('reproducible')
     expect(store.getReport('A-1')).toContain('reproducible')
     await runTool(tool, { action: 'decide', op: 'accept', attemptId: 'A-1', by: 'me' })
     expect(store.decisionsFor('A-1').map(d => d.kind)).toContain('accept_result')
+    expect(readFileSync(agenda, 'utf8')).toContain('A-1')
   })
 
   it('refuses to call a different commit a reproduction', async () => {

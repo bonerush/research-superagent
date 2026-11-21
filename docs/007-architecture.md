@@ -311,6 +311,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `src/research/sign.ts` | `sign` and its `ContractSink` port: freeze once, record the human decision, refuse a second signature |
 | `src/app/views/research.ts` | `researchOverview`: the batches to pick, the attempts to judge and the reports drawn, all read from the research store |
 | `src/client/research.tsx` | The panel's research tab, one list per thing that waits for a person |
+| `src/app/agenda-file.ts` | `readAgenda` and `appendAgenda`: the conclusions file beside the research database, written once per decision |
 | `src/app/research-runtime.ts` | `openResearch`: the research database in its own file, created on start and closed on shutdown |
 | `src/app/tools/research.ts` | The main Session's one research tool, a discriminated union over propose, critique, pick, sign, protocol, attempt, run, evidence, decide, machine and status |
 | `src/research/evidence.ts` | The evidence package and `validateEvidence`: every contract criterion must carry a value before the package is stored |
@@ -477,6 +478,7 @@ Some generic modules still refer directly to GitHub or Feishu:
 | `tests/research-convergence.spec.ts` | The whole convergence loop through the tool, including the refused acceptance |
 | `tests/research-view.spec.ts` | The overview leaves out picked batches and accepted attempts, and keeps the rest |
 | `tests/panel-research.spec.tsx` | The research tab renders its four sections, each empty when nothing waits |
+| `tests/agenda-file.spec.ts` | The agenda file creates itself, appends, skips a duplicate id and refuses a malformed file |
 | `tests/delivery.spec.ts` | `AgentDelivery` |
 | `tests/retry-health.spec.ts`, `tests/role-models.spec.ts` | Model budget retries, and the models of the two roles |
 | `tests/runtime.spec.ts` | The whole application on a simulated DeepSeek Harness host, through tools and HTTP |

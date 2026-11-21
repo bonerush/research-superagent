@@ -2,8 +2,10 @@
 import { z } from 'zod'
 import { conclude, openAttempt, startAttempt, waitAttempt } from '../../research/attempt.ts'
 import { critique, presentable, saveBatch } from '../../research/batch.ts'
+import { appendAgenda } from '../agenda-file.ts'
 import { accept, kill } from '../../research/decide.ts'
 import { draftContract } from '../../research/draft.ts'
+import type { AgendaEntry } from '../../research/agenda.ts'
 import type { EvidencePackage } from '../../research/evidence.ts'
 import { pick } from '../../research/pick.ts'
 import type { Batch, Candidate } from '../../research/proposal.ts'
@@ -49,11 +51,13 @@ const Action = z.discriminatedUnion('action', [
 export interface ResearchToolDeps {
   repo: ResearchRepo
   machine?: MachinePort
+  /** The agenda file; when set, an accepted or killed decision is written there as a conclusion. */
+  agendaPath?: string
 }
 
 /** The one research tool: the loop from a batch to an accepted report. */
 export function researchTool(deps: ResearchToolDeps): Tool {
-  const { repo } = deps
+  const { repo, agendaPath } = deps
   return make({
     name: 'research',
     description: 'The research ledger: propose, critique, pick and sign build the contract; protocol, attempt and run execute it; evidence, decide and machine converge it; status reads. pick, sign and decide record what the person decided and may only be called after they said it.',
@@ -153,14 +157,37 @@ export function researchTool(deps: ResearchToolDeps): Tool {
           const evidence = repo.getEvidence(args.attemptId)
           if (!evidence) throw new Error(`attempt ${args.attemptId} has no evidence`)
           if (!repo.getReport(args.attemptId)) throw new Error(`attempt ${args.attemptId} has no report`)
+          const contract = repo.getContract(attempt.contractVersion)
+          if (!contract) throw new Error(`attempt ${args.attemptId} has no signed contract`)
           repo.recordDecision(accept(attempt, evidence.outcome as Reproducibility, args.by, now()))
-          return { accepted: args.attemptId }
+          const written = agendaPath !== undefined && appendAgenda(agendaPath, {
+            id: attempt.id,
+            question: contract.goal,
+            precision: 'topic',
+            status: 'answered',
+            conclusion: `${String(attempt.verdict)} after a reproduced rerun: ${contract.requirement}` ,
+            evidence: repo.runsOf(attempt.id).map(run => run.id),
+            decidedBy: args.by,
+            at: now(),
+          })
+          return { accepted: args.attemptId, agenda_written: written }
         }
         if (!args.targetId) throw new Error('kill needs a target')
         const question = repo.getQuestion(args.targetId)
         if (!question) throw new Error(`unknown question ${args.targetId}`)
-        repo.recordDecision(kill(args.targetId, args.note ?? '', args.objection ?? '', args.by, now()))
-        return { killed: args.targetId }
+        const decision = kill(args.targetId, args.note ?? '', args.objection ?? '', args.by, now())
+        repo.recordDecision(decision)
+        const written = agendaPath !== undefined && appendAgenda(agendaPath, {
+          id: args.targetId,
+          question: question.statement,
+          precision: question.precision,
+          status: 'abandoned',
+          conclusion: String(decision.note ?? ''),
+          evidence: [],
+          decidedBy: args.by,
+          at: now(),
+        })
+        return { killed: args.targetId, agenda_written: written }
       }
       if (args.action === 'machine') {
         const port = deps.machine
